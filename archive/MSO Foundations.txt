@@ -1,0 +1,81 @@
+
+MSO Foundation
+Modulle này giới thiệu các nguyên tắc cơ bản của model và những nền tảng kỹ thuật cho xuyên suốt khóa học cho Developer mà ta nên có rồi
+Achivements sau module:
+- Giải thích được token là gì, cách context window (số token tối đa model xử lý được trong một request, tính cả input lẫn output) hoạt động như 1 fixed budget (1 budget cố định) và non-determinism (tính không tất định - cùng một prompt có thể cho ra output khác nhau, vì model lấy mẫu (sample) token tiếp theo chứ không luôn chọn một đáp án cố định) trong testing và evals (Hệ quả là không thể test LLM bằng Assert.Equal(expected, actual). Thay vào đó bạn kiểm tra thuộc tính của output: JSON có hợp lệ không, có đủ field không, có đạt điểm theo rubric không. Mỗi test case cũng nên chạy nhiều lần. Đó chính là evals)
+- Mô tả model family của Claude, các capability tiers (cấp độ năng lực - sự đánh đổi giữa các model: Haiku nhanh và rẻ, Sonnet cân bằng, Opus mạnh nhất nhưng chậm và đắt hơn). Tách biệt việc chọn model với việc chọn một chế độ hợp lý như extended thinking => “chọn model nào” và “bật chế độ nào”.
+- Việc lựa chọn zero-shot, one-shot, multi-shot (là số ví dụ bạn đưa vào prompt. Đánh đổi ở đây là mỗi ví dụ tốn input token ở mọi lần gọi, đổi lại output ổn định và đúng format hơn) trong prompting và cân nhắc về sự đánh đổi chi phí và chất lượng trong các ví dụ
+- Mô tả cách một dev truy cập vào Claude: SDK hay REST, đồng bộ hay stream (synchronous versus streaming responses), pattern bất đồng bộ cho khối lượng công việc lớn
+
+1. Cách LLM ứng xử
+- Token: tập hợp của input, ouput và chi phí. 
+	Claude does not read characters or words directly. It reads tokens, and the characters-per-token average depends on the tokenizer of the model at hand and differs between model generations. Treat any chars-per-token rule of thumb as model-dependent and confirm current tokenizer behavior at build time. Everything the model processes is counted in tokens: your prompt, the conversation history, tool definitions, tool results, and the response the model generates. Tokens are the unit of both pricing and budget, so when you estimate what a feature costs or whether an input fits, you are counting tokens, not words. A useful habit is to think in tokens, since that is the unit the API bills in and the context window measures.
+	=> Tức là Claude ko trực tiếp đọc các từ hay ký tự trong prompt trực tiếp. Claude chỉ làm việc với token. Mỗi loại model (tokenizer phụ thuộc vào model, không phụ thuộc mode. Bật extended thinking không thay đổi cách token hóa, mà chỉ sinh thêm thinking token) sẽ có cách token-hóa prompt riêng và sẽ có chi phí khác nhau. Chi phí này bao gồm việc lý giải các từ và ký tự trong prompt, cả lịch sử đối thoại, việc định nghĩa các tool và cả result của các tool và việc phản hồi lại prompt. 
+	Trong API, bạn truyền vào danh sách tool - tên, mô tả, JSON schema. Các schema này được đưa vào prompt ở mọi lần gọi. Khi model gọi tool, code của bạn chạy tool đó rồi gửi kết quả ngược lại, và kết quả đó cũng là token. Liên hệ backend: giống như đính kèm nguyên file OpenAPI spec vào mỗi request.
+	Token  là một đơn vị đo cho chi phí và budget (tiers của subcription). 
+		- Chi phí = số token × đơn giá mỗi token. Đơn giá tùy model, và input với output tính giá riêng (output đắt hơn).
+		- Budget = context window, giới hạn token cố định cho mỗi request. Nó không phải tier subscription. Rate limit và gói đăng ký là chủ đề khác.
+	VÌ vậy khi ước lượng chi phí của một feature hay gì thì đều phải đánh giá trên token chứ ko phải câu chữ => nên suy nghĩ mọi thứ dưới dạng token vì đó chính là cụ thể đối tượng tính bill cho API. Messages API là stateless, giống HTTP. Nó không nhớ các lượt trước, nên mỗi lượt bạn phải gửi lại toàn bộ lịch sử. Kết quả là input token, và do đó chi phí, tăng dần theo từng lượt chat
+	
+	
+- Context Window: a fixed budget
+	Nguyên văn: The context window is the total number of tokens the model can take in for a single request. It holds everything at once: the system prompt, the full conversation so far, any documents you inject, every tool result, and the model output. It is a fixed budget with two distinct edge behaviors. A request whose input is already larger than the window is rejected with a validation error before generation begins. A request that fits on input can still reach the ceiling during generation. Current models then stop and return the output generated so far with a model_context_window_exceeded stop reason rather than raising an error. Either way, keeping a long session running requires the application to trim or summarize history before each call. In development, the window rarely fills because test inputs are short. In production, on the other hand, longer inputs and more turns fill the window faster. This is the failure Module 2 explores in detail.
+	=> tổng lượng token mà một model có thể xử lý cho 1 request, bao gồm câu prompt, cả context của cuộc hội thoại, các document được đính kèm xuyên suốt và các output được trả ra (khi dùng agent thì kết quả cảu agent cũng đc tính vào output của 1 request). Giới hạn này sẽ chặn lại các case mà input nó lớn hơn số lượng token mà model có thể xử lý trên 1 request và sẽ được chặn trước khi có bất kỳ bước nào tạo ra bất kỳ output gì. Nếu như input nó lớn nhưng ko tới mức vượt trânf thì request vẫn được diễn ra nhưng khi chạm trần thì reqeuest sẽ bị stop và chỉ response về toàn bộ output cho tới thời điẻm chạm trần. 
+	Những gì nằm trong window
+		• System prompt (luôn có ở mọi request)
+		• Toàn bộ lịch sử hội thoại
+		• Document được đưa vào
+		• Kết quả tool — đây là input, không phải output
+		• Output model sinh ra trong request đó
+		=> Luồng tool use: request 1, model trả output "muốn gọi tool X" → code của bạn chạy tool X → request 2 gửi kết quả tool X vào input kèm toàn bộ history. Output chỉ là phần model tự sinh ra.
+	Trách nhiệm của application: API stateless nên mỗi lượt gửi lại toàn bộ history. Muốn session chạy lâu, application (code của bạn) phải trim hoặc summarize history trước mỗi lần gọi, không phải API.
+		• Ví dụ Claude Code: mỗi lượt chat là một request mới mang theo history. Khi sắp không vừa window, Claude Code tự compact (tóm tắt history) rồi mới gửi tiếp — ở đây Claude Code đóng vai application. Compact nhiều lần thì mỗi lần mất bớt chi tiết, nên chất lượng có thể giảm dù vẫn chạy được.
+	Dev vs production: Lúc dev, input test ngắn nên hiếm khi đầy window. Lên production, input dài hơn và nhiều lượt hơn nên đầy nhanh hơn — lỗi này thường chỉ lộ ra trên production. Module 2 sẽ đào sâu.
+- Sampling: why the same prompt can give different answers
+	Nguyên văn: A language model does not pick one fixed next token. At each step it produces a probability distribution over possible next tokens and then samples from it. Settings, such as temperature, shape that distribution: a lower temperature concentrates probability on the most likely tokens and makes output more repeatable, while a higher temperature spreads it out and makes output more varied. Because the choice is sampled rather than fixed, the same prompt run twice can return different wording even when both answers are correct. This is a property of how the model generates. Note that sampling controls are model-dependent: the newest Claude models do not accept non-default sampling parameters. Setting temperature, top_p, or top_k returns a 400 error, and behavior on those models is steered through prompting instead. Even where temperature is accepted, temperature 0 makes outputs more repeatable but does not guarantee identical outputs across calls. Confirm current parameter support in the API reference at build time.
+	=> sampling, mình đang hiểu theo nghĩa là lấy mẫu. model không chọn token nào một cách cố định cho bước kế tiếp, với mỗi bước, model sản xuất ra sự phân phối xác suất của các token kế tiếp và "lấy mẫu" từ các result này. Trong nguyên tác nói về "temperature", mình ko chắc từ ngữ đúng là gì nhưng mình nghĩ là nó là vùng phủ của sự phân phối được model produce. Vùng phủ càng nhỏ, thì distribution càng nhỏ và cấc output sẽ trở nên repeatable - có thể lặp lại hay có thể nói là dễ xác định hơn vì nó chỉ trong 1 vùng. Còn nếu temperature cao tức là độ phủ rộng, dẫn đến sự phân phối được trải rộng ra, dẫn đến nhiều  khả năng hơn và result là output nó cũng varied - đa dạng và khó xác định hơn. Mặc dù vùng phủ có nhỏ nhưng thực chất ko phải cố định 1 điểm nên dù nhỏ vẫn sẽ có những khác biệt nhất định, ví dụ chính là cùng 1 prompt, response trả ra có thể cùng kết quả nhưng câu chữ lại khác nhau, đây là ví dụ của vùng phủ dù nhỏ nhưng lại ko hoàn toàn đòng nhất. 
+		“Vùng phủ” gần đúng nhưng dễ hiểu lệch. Temperature không thu hẹp tập token có thể chọn. Nó làm nhọn hoặc làm phẳng phân phối:
+			Thấp: dồn xác suất vào vài token đứng đầu → gần như luôn chọn chúng → output dễ lặp lại.
+			Cao: san đều xác suất hơn → token ít khả năng cũng có cơ hội → output đa dạng.
+			=>Liên hệ backend: giống weighted load balancer. Giả sử 3 server có trọng số 70/20/10.
+				Temperature thấp giống như khuếch đại trọng số lên 95/4/1: gần như lúc nào cũng vào server đầu.
+				Temperature cao giống như kéo về 40/33/27: rải đều hơn.
+	Tham số sampling trên Claude hiện tại
+		• Các model Claude mới nhất không nhận tham số sampling khác mặc định. Gửi temperature, top_p hoặc top_k sẽ bị lỗi 400.
+		• Muốn điều khiển hành vi thì làm qua prompt. Prompt không đổi temperature, mà thay đổi chính phân phối xác suất.
+		• Việc này phụ thuộc model: model cũ hơn có thể vẫn nhận các tham số này. Luôn kiểm tra API reference lúc build.
+		=> Temperature 0 không đảm bảo output giống hệt nhau giữa các lần gọi, chỉ làm output dễ lặp lại hơn. Đây là cầu nối sang phần Non-determinism.
+- Non-determinism: what it means for testing and evals
+	NGuyên văn: Non-determinism is the primary consequence of sampling: identical inputs do not guarantee identical outputs. That changes how you test a Claude feature. A test that asserts the exact text of a response will be inconsistent, because the model can express the same correct answer many ways. Instead, assert on the property that must hold: a required field is present, a value is in range, the structure parses. When you need to judge meaning rather than structure, use an eval with a model-graded judge. This is why the course treats evals as the standard for knowing a feature is correct, and why Module 3 builds that capability.
+	=> Đây là hệ quả của sampling, cùng một prompt ko thể đảm bảo cùng output nên cách ta test claude sẽ khác biệt với cách ta test feature thông thường. 
+	Ví dụ cùng một câu trả lời đúng có thể diễn đạt theo nhiều cách. 
+		API thường là deterministic: cùng input → cùng output → Assert.Equal chạy ổn. 
+		LLM: lần 1 trả “Thủ đô là Hà Nội.”, lần 2 trả “Hà Nội là thủ đô của Việt Nam.” Cả hai đều đúng, nhưng test so nguyên văn sẽ lúc pass lúc fail. Đó chính là “inconsistent” trong bản gốc, dân backend hay gọi là flaky test.
+	Cho nên là testing với Claude nên quy phạm về các properties, yêu cầu một field phải có mặt (như field A), kết quả phải có trong 1 range (như ví dụ thì kết quả phải là B hoặc trong khoảng nào đó tùy vào câu hỏi), thêm nữa là the structure parses. Structure parses (cấu trúc parse được): output có đúng định dạng để đọc bằng code không. Liên hệ backend: JsonSerializer.Deserialize<T>(output) chạy không throw. 
+		Ba loại assert trong bản gốc, viết theo kiểu backend:
+			Field bắt buộc có mặt 		=> Assert.NotNull(result.CustomerId)
+			Giá trị nằm trong khoảng 	=> Điểm sentiment trong 1–5, hoặc category thuộc tập enum cho phép
+			Cấu trúc parse được 		=> Deserialize JSON không lỗi
+	Khi cần đánh giá về ý nghĩa của 1 response hơn là cấu trúc thì ta cần "eval with a model-graded judge" tức là một sự đánh giá bằng cách sử dụng một model để phán đoán/đánh giá xem respone đã đạt tiêu chuẩn chưa. Judge dùng cho những thứ code không kiểm được: bản tóm tắt có đúng ý văn bản gốc không, câu trả lời có bịa thông tin không, giọng văn có lịch sự không.
+	=> Evals là chuẩn để biết một feature “đúng” trong toàn khóa học, và Module 3 sẽ xây năng lực này.
+	
+Model options and reasoning modes
+1. The Claude model family
+	Hiện tại Claude đang có 4 model: Fable, Opus, Sonnet và Haiku. Mỗi model đều đại diện cho một package tổng hợp giữa chi phí, độ trễ và khả năng (cost, latency, and capability). Đi từ các mũi nhọn ra thì sẽ theo thứ tự này:
+		- Haiku: nhanh và chi phí phải chăng nhất trong phạm vi khả năng hẹp. Phù hợp cho các đầu việc nhanh, nhẹ đô, lặp lại được và cần ít suy luận hơn. Ví dụ như phân loại ticket, trích xuất field từ văn bản, routing request, hoặc các task khối lượng lớn cần phản hồi gần như tức thì.
+		- Sonnet: là model cân bằng nhất trong family, mức chi phí phải chăng, rẻ hơn hẳn Opus và mắc hơn Haiku. Mắc hơn nhưng lại có khả năng cao hơn và phù hợp với các công việc tạo ra sản phẩm hằng ngày. Ví dự: Công việc hằng ngày như viết code, làm API, review, viết tài liệu
+		- Opus: lớn thứ 2 trong family cả về khả năng lẫn chi phí. Phù hợp cho các công việc breakdown system, dựng kiến trúc tổng quan, thiết kế cấu trúc dữ liệu. Ví dụ: Task phức tạp như thiết kế kiến trúc, phân rã hệ thống, debug khó, refactor lớn
+		- Fable: là tầng cấp cao hơn cả Opus, có khả năng cao nhất trong Claude và đồng thời chi phí cao nhất. Model này được xây dựng cho các công việc đòi hỏi khả năng tư duy cao nhất bao hàm toàn bộ các model còn lại nhưng ở một mức độ thông minh cao cấp hơn. Các công việc đòi hỏi tư duy cực kỳ sâu và khả năng tự vận hành (autonomy) trong nhiều giờ hoặc nhiều ngày liên tục mà không cần con người can thiệp
+2. Reasoning modes are a separate setting from model choice
+	Chọn model là một núm vặn; cách model suy nghĩ trước khi trả lời là một núm vặn khác, độc lập. Cả hai đều đặt được ở mỗi request trong API.
+	Reasoning mode mặc định hiện tại là adaptive thinking:
+	• Model tự quyết có cần suy nghĩ hay không, và suy nghĩ bao nhiêu.
+	• Ta đặt mức effort: model nên dành bao nhiêu công sức suy nghĩ.
+	=> Ví dụ: cùng một dev, hai cách hỏi
+		Sếp hỏi cùng một dev câu "nên dùng Redis hay in-memory cache cho service này?":
+		• Effort thấp: hỏi giữa cuộc họp, "trả lời nhanh" → dev trả lời theo kinh nghiệm trong vài giây.
+		• Effort cao: "về suy nghĩ kỹ rồi trả lời" → dev cân nhắc số instance, dữ liệu có cần share không, chi phí vận hành, rồi mới kết luận.
+		Người vẫn là một — chỉ khác mức độ suy nghĩ trước khi trả lời. Effort không phải phạm vi công việc (làm thêm report, POC…), mà là độ sâu suy nghĩ cho cùng một câu hỏi.
+		"Adaptive" nghĩa là: dù được dặn suy nghĩ kỹ, gặp câu dễ ("port mặc định của Redis là gì?") dev vẫn trả lời ngay, không cần nghĩ lâu.
+3. How the two work together
+	2 decision này độc lập với nhau nên chúng có thể set một cách riêng biệt. Lựa chọn model có khả năng vừa đúng sẽ thực hiện đủ và nhanh, nhưng nếu lựa chọn model yếu nhưng effort cao thì sẽ dân đến task kéo dài do tốn thời gian thinking lâu hơn nhưng lại không đảm bảo. Một task phức tạp và khó yêu cầu Model có độ khả dụng phù hợp kết hợp với mức effort cao và hợp lý

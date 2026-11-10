@@ -1,0 +1,75 @@
+Building with the Claude API
+
+Accessing the API
+- breakdown process của một ask and response của enduser và claude. Ví dụ user hỏi A là gì, và Claaude trả lời một réponse với nội dung tương ứng. Đây là mặt nổi, và ta đi behind the scene và khám phá 5 bước cụ thể
+	1. Request to server: server của ta nhận câu hỏi từ client (nơi user đang nhập "A là gì?")
+		Request tới Anthropic ko nên được gọi trực tiếp từ client
+		API request tới Anthropic yêu cầu vài có một secret API Key. và key này ko nên bị expose
+		=> Thật ra mình nghĩ đây là quy chuẩn bảo mật chung của một dev rồi, ko expose bhaast kỳ key nào ra cho client
+	2. Request to Anthropic API: tiếp theo bước ở trên, ta thực hiện gọi request tới Anthropic từ phía server của ta sau khi nhận request từ client
+		- Request được gọi qua SDK hoặc thông qua HTTP request, thông tường ta sẽ chọn sử dụng SDK để đảm bảo nhanh và process đúng chuẩn của Authropic. Hiện tại đang được report là đã có SDK trên các môi trường Pyython, TypeScript, JavaScript, Go và Ruby
+		- Cả 2 cách đều gửi request HTTP tới Authropic và request đó bao gồm các field 
+			API Key: mã secret định danh của ta
+			Model: Tên Model ta đâng muốn dùng
+			Messages: một list các messages bao gồm thông tin input của user
+			Max token: Giới hạn lại bao nhiêu token mà model có thể tạo
+	3. Model processing: Khái quát lại thì có 4 stage
+		- Tokenization: Biến input thành các tokens ví dụ đơn giản nhất là biến một câu thành 1 list các token mà mỗi từ là một token. Ví dụ "What is A?" sẽ tách ra 4 token ["What", "is", "A", "?"]
+		- Embedding: Convert mỗi token trên thành một embedding - một list dài chứa các con số, mình được giới thiệu các list này hay chuỗi các con số này là định nghĩa của các từ dưới dạng một danh sách các con số, ví dụ gần nhất mình hiểu được đó là khi ta convert các con số thành các array nhị phân
+		- Contextualization: Một từ có thể có nhiều nghĩa, đó là lý do ta cần các từ khác xung quanh để hõo trợ chọn ra định nghĩa đúng nhất cho các từ. Contextualization là quá trình refine định nghĩa của mỗi embedding dựa trên sư liên quan lần nhau trong danh sách các định nghĩa của mỗi từ. Quá trình này highlight ý nghĩa hợp lý nhất sau khi consider ý nghĩa của các từ xung quanh
+		- Generation: các embeddings đã được cung cấp định nghĩa về chính nó và các hàng xóm xung quanh, và mọi thứ đều được napf vào một lớp là Output layer. Đây là nơi sẽ sản sinh ra các cụm từ tiếp diễn có thể được đưa ra. Layer ko tự động chọn một từ tiếp theo mà có khả năng cao nhất mà dùng một tổ hợp của probability và ngẫu nhiên -> Tạo ra một phản hồi trong tự nhiên và đa dạng nhất có thể. Sau khi đã soạn ra được các từ để output, model sẽ ngừng và tự hỏi các câu hỏi đeer kiểm tra xem đã done khởi tạo text chưa. Đầu tiên model sẽ dếm số token đã được tạo ra và so sánh với field "max tokens" trong request.  Khi chạm ngưỡng thì model sẽ tự generate một câu text để thông báo là đã đạt ngưỡng token.
+	4. Response to server: Khi đã generate được output thì authropic sẽ réponse lại cho server, nơi gọi đến authropic từ đầu. Respone bao gồm
+		- Message: text được generate
+		- Usage: tổng token cho input + output
+		- Stop reason: lý do model ngừng việc tạo text (nếu gặp EoS-End of Sequence ở trên hay các lý do khác)
+	5. Response to client: Hiển thị réponse lên client để phản hồi tin nhắn của user
+	
+
+System prompts: là câu prompt cung cấop trong request để hướng dẫn cách phản hồi như cách bạn hướng dẫn mình học cả khóa học này, ko trực tiếp đưa ra kiến thức mà cung cấp một lộ trình giống như là 1 gia sư vậy. 
+	system_prompt = """
+					You are a patient math tutor.
+					Do not directly answer a student's questions.
+					Guide them to a solution step by step.
+					"""
+	
+client.messages.create(
+    model=model,
+    messages=messages,
+    max_tokens=1000,
+    system=system_prompt
+)
+
+Low Temperature (0.0 - 0.3)
+	Factual responses
+	Coding assistance
+	Data extraction
+	Content moderation
+Medium Temperature (0.4 - 0.7)
+	Summarization
+	Educational content
+	Problem-solving
+	Creative writing with constraints
+High Temperature (0.8 - 1.0)
+	Brainstorming
+	Creative writing
+	Marketing content
+	Joke generation
+	
+=> 	Need consistent, factual responses? Use low temperature
+	Want creative brainstorming? Dial up the temperature
+	Somewhere in between? Medium temperatures work well for most general tasks
+	
+	
+API stateless thì làm sao giữ được hội thoại nhiều lượt? Trường usage cho bạn biết gì, và nó tăng thế nào qua từng lượt?
+	Làm theo example được cung cấp trong khóa học, giữ toàn bộ messages trong cuộc hội thoại bao gồm user message và assistant message đeaer khi gửi gửi toàn bộ trong 1 list
+	Usage dịch sát nghĩa là số lượng token đã sử dụng cho input và output. Tùy thuộc vào list message, model, và các param khác như temperature, system prompt mà usage sẽ tăng dần cho đến lúc chạm ngưỡng lmit của API Key/ account/ hay max_token
+Khi nào nên stream response, khi nào không cần?
+	Stream respone chủ yếu là 1 phương thức cải thiện UX cho phép user nhìn thấy được câu trả lời bằng cấch trra ra từng cụm/ từng từ từ câu phản hồi của claude. NÊn đây chủ yếu là cho UX kkhi ta đánh giá thời gian response có thể sẽ lâu như tool coding, còn với thời gian ngắn như các chat box hỗ trợ thông thường ta vẫn có thể dùng HTTP réponse bình thường
+Gửi ảnh vào request bằng cách nào, và ảnh ảnh hưởng đến chi phí ra sao?
+	Trong khóa học ko giải thích về case này nhưng mình nghĩ nó sẽ là 1 param trong lúc soạn request hoặc một reqeust upload file riêng
+Có những cách nào để lấy JSON đúng schema? Cách nào đáng tin nhất, và vì sao vẫn phải validate?
+	có các cách cơ bản như
+		gửi nhiều request và lấy bản đúng nhất (dựa toàn bộ vào prompt)
+		bổ sung thêm loại output vào message khi gửi request
+		=> các cách đa số phụ thược vào prompt, có 1 cách đảm bảo hơn về format hơn là dùng prefilling và stop_sequences trong request, ta prefilling tức là báo cho model sẵn là sẽ sử dụng json format với assistant message "```json" và stop_sequence "```", dùng "```json" vì khi đính kèm trong prompt claude sẽ tự đánh dấu câu trả lời với ```json và tự kết thúc với ```. Bổ sung 2 điều trên cho phép model tự filter ra các character này
+		
