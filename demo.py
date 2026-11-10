@@ -52,7 +52,7 @@ def add_user_message_with_media(messages, text, image_path):
 def add_assistant_message(messages, text):
     messages.append({"role": "assistant", "content": text})
 
-def chat(messages, system=None, max_tokens=1000):
+def chat(messages, system=None, max_tokens=1000, model=model):
     params = {"model": model, "max_tokens": max_tokens, "messages": messages}
     if system:
         params["system"] = system

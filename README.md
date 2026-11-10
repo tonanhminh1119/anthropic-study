@@ -4,7 +4,7 @@ Các script nhỏ minh hoạ cách dùng Claude API qua Python SDK `anthropic`.
 
 ## Chuẩn bị
 
-1. Cài thư viện: `pip install anthropic python-dotenv`
+1. Cài thư viện: `pip install -r requirements.txt`
 2. Sao chép `.env.example` thành `.env` rồi điền API key:
    ```
    ANTHROPIC_API_KEY=<key của bạn>
@@ -29,3 +29,5 @@ python demo_batch.py     # Message Batches API
 | `demo_batch.py` | Gửi 20 request cùng lúc bằng Message Batches API, poll đến khi xong rồi in kết quả. Xử lý bất đồng bộ nên rẻ hơn nhưng chậm hơn. |
 
 Thí nghiệm `caching` dùng văn bản dài trong `archive/Building with the Claude API.txt`. Thư mục `archive/` chỉ để lưu tài liệu tham khảo.
+
+So sánh realtime và batch: xem [NOTES.md](NOTES.md).
