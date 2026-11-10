@@ -35,3 +35,5 @@ python bench_models.py   # benchmark 4 model (tốn tiền thật, vài cent)
 Thí nghiệm `caching` dùng văn bản dài trong `archive/Building with the Claude API.txt`. Thư mục `archive/` chỉ để lưu tài liệu tham khảo.
 
 So sánh realtime và batch: xem [NOTES.md](NOTES.md).
+
+Danh sách issue đã gặp và đã sửa: xem [ISSUES.md](ISSUES.md).
