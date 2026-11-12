@@ -7,6 +7,7 @@ System prompts, XML, few-shot, and output constraints
     + Content đi chêch hướng: scope bị trôi dạt, tông cũng vậy hay chỉ đơn giản là Claude trả lời phức tạp hơn ta cần và nó chỉ càng ngày càng tệ khi ta tiếp tục trò chuyện -> Đang thiếu "system prompt" hay nói cách khác "thỏa thuận/hợp đồng về hành vi" (behavioral contract) quá mơ hồ để có thể được giữ mỗi lượt trò chuyện -> system prompt thiết lập một rule được áp dụng cho mọi response bất kể đay là lượt nào của user. Khi không được xác định rõ ràng thì vai trò, scope và format sẽ không được giữ vững xuyên suốt cuộc hội thoại
     + Task diễn ra đúng, nhưng cấu trúc kết quả thì được tự chế. Claude hiểu được đúng nhugnwx gì cần làm và đưa ra output duối một hình dạng bạn chưa từng yêu cầu -> thiếu Few-shot examples. Claude không thể đưa ra cấu trúc cho phản hồi một cách chính xác nếu chỉ có riêng mô tả -> Few-shot examples cung cấp pattern hơn là mô tả output. CHỉ cần một ví dụ input-output đúng là đủ để cho Claude xác định được hình dạng của phản hồi phải như thế nào.
     + Output đúng và sạch nhưng chỉ với input mà bạn cung cấp nhưng lại vỡ/fail khi gặp các biến ngoại lệ: một trường hợp đặc biệt (edge case), một field bất thường, hay là một input bạn ko ngờ tới. Giống như khi ta dev chỉ mô tả đúng unit test và happy case, nhưng đến khi thực hiện QC, Security test và Load/Stress test thì ứng dụng sẽ bị raise lên -> thiếu constraint có thể bao bọc các biển thể (variants). prompt chỉ cover cho happy case và ko hề có rule nào cho các case bị vỡ/fail -> Prompt được đánh giá dựa trên một tập hợp hẹp của các input. Nêu tên các biến variant trong constraint hoặc thêm ví dụ minh họa chúng, thu hẹp các khoảng hở mà input test chua từng đề cập, để lộ ra
+    + XML tags: Được dùng khi prompt bị trộn lẫn cả input lẫn hướng dẫn (instruction). BẰng cách thêm các tag <code> <doc> <một label định danh cho một mục đích cụ thể> ta có thể giúp model giảm đi việc nhầm lẫn giữa input thực sự và các hướng dẫn/dẫn chứng vì trong 1 prompt model xem tất cả như nhau
 
 2. Extended Thinking
 Extended Thinking: Turning reasoning on, calibrating effort, and reading it back correctly
@@ -21,4 +22,28 @@ Checkpoint:
     + Classify 50,000 support tickets into three labels overnight. -> Leave it off. A one-word label needs no reasoning pass. Reasoning tokens on every ticket multiply output cost across 50,000 calls with no accuracy gain.
     + Plan a multi-step refactor where each step depends on the previous one. -> Enable it, budget for the planning step. Without the reasoning pass the model commits to a plan before working through the dependencies, and the first dependent step fails.
     + Strip the thinking block out of conversation history to save context before the next tool call. -> Never do this. The signature no longer matches and the next request is rejected. Manage accumulated reasoning with context engineering, not by editing the blocks.
+=> trong tài liệu ko mô tả cụ thể về giá của extended thinking nhưng mình tìm thấy article "https://platform.claude.com/docs/en/build-with-claude/thinking" "Thinking has a cost: the tokens Claude spends reasoning are billed as output tokens, even when the thinking text isn’t returned to you, and they count toward max_tokens alongside the response text" cho thấy Anthropic tính chi phí của thinking vào trong output_tokens luôn cho nên có thể xem là chi phí của thinking tương đương chi phí token của model
 
+1. Prompt trả JSON đúng 95% số lần, 5% còn lại có câu dẫn "Here is the JSON" phía trước. Triệu chứng nào, kỹ thuật nào, và còn lớp đảm bảo nào mạnh hơn sửa prompt (nhớ lại Day 2–3)?
+    => Đây là triệu chứng của sampling và setting temperatue, cùng prompt có thể trả ra nhiều kết quả đúng nhưng bị sai forrmat và đồng thời cũng là case mà "Few-shot examples" đã đưa ra, Claude hiểu được đúng những gì cần làm nhưng đưa ra output sai định dạng. Ở bước này nên cung cấp example về output để claude có thể có một chuẩn chung về output
+2. Phân loại 50.000 ticket. Nếu bật thinking và mỗi ticket tốn thêm trung bình 300 token output, giá Sonnet 5.5 là $10 mỗi 1M token output thì chi phí tăng thêm bao nhiêu? Tính bằng code.
+    => như đã nói về chi phí thì ko có tài liệu chính thức về pricing token của thinking nên sẽ áp dung mức giá của chính model cho thinking thì với mỗi ticket tốn 300 token thì 50.000 triệu ticket sẽ tốn 300*50.000=150000 token tương đương 10$/150000token = 0.0001$
+3. Vì sao xoá hoặc sửa thinking block làm request tiếp theo bị từ chối, và khi context phình ra thì bạn quản lý thế nào thay vì sửa block?
+    => Claude bắt buộc thinking block giữ nguyên để giữ việc lý giải (reason) được nguyên vẹn và không bị can thiệp. Claude force điều này bằng cách tạo một signature chô mỗi block để confirm việc này, néu bạn thao tác WRITE/DELETE lên block thinking thì signature sẽ tự động bị  mismatch và claude sẽ từ chối request. Nếu lo ngại về việc context sẽ bị đôn lên thì Anthropic đưaa ra giải pháp là context-engineering work (chưa được học trong module này)
+4. Khi nào dùng XML tag? Viết một prompt ngắn nhúng dữ liệu người dùng vào bằng XML tag và giải thích tag làm gì.
+    => Khi muốn đưa ra hướng dẫn hay sample trong prompt thì nên dùng XML tag
+    <task>Trích xuất dữ liệu từ tài liệu thành một object json theo đúng định dạng trong ví dụ.</task>
+    <example>
+        <doc>Tôi là Alex, 28 tuổi, hiện đang ở Da Nang.</doc>
+        <output>
+        {
+            "name": "Alex",
+            "age": 28,
+            "city": "Da Nang"
+        }
+        </output>
+    </example>
+
+    <doc>
+    Tôi tên là Minh, năm nay 26 tuổi và đang sống ở Việt Nam.
+    </doc>
