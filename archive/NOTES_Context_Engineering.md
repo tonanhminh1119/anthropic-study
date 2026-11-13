@@ -42,12 +42,22 @@ Với agent, quá trình rất quan trọng (giới hạn số vòng, trace log,
 - Các bước biết trước và lặp lại được: workflow (dễ dự đoán, rẻ hơn, dễ test). Ví dụ: xử lý hoá đơn (trích xuất, kiểm tra, ghi DB).
 - Các bước phụ thuộc kết quả trung gian và không liệt kê trước được: agent. Ví dụ: điều tra một bug trong codebase.
 
+**Ví dụ gộp: CI/CD** (chứa cả ba khái niệm trong cùng một hệ thống)
+
+| Khái niệm | Trong CI/CD |
+|---|---|
+| Workflow | Pipeline build → test → quét bảo mật → deploy staging → deploy prod. Các bước và thứ tự định sẵn trong file YAML; mỗi lần chạy giống nhau, dễ dự đoán, dễ test |
+| Agent | Khi pipeline fail và muốn tự động tìm nguyên nhân: đọc log, xem diff của commit, chạy lại một test, kiểm tra config. Bước tiếp theo phụ thuộc kết quả bước trước và không liệt kê trước được |
+| Human-in-the-loop | Bước manual approval trước khi deploy prod. Không đặt ở mọi stage, chỉ đặt ở chỗ hành động khó hoàn tác (giống tool xoá) |
+
+Thiết kế thực tế hay gặp là kết hợp: giữ pipeline là workflow, chỉ cắm một agent vào đúng điểm cần suy luận mở (phân tích nguyên nhân fail), còn deploy vẫn do pipeline cố định và có cổng phê duyệt. Nguyên tắc: dùng agent ở chỗ cần khả năng thích nghi, dùng workflow ở chỗ cần tính nhất quán và an toàn.
+
 Lưu ý: ví dụ SQL/NoSQL mình dùng ban đầu chưa đúng, vì chúng khác nhau ở hình dạng dữ liệu (schema chặt hay không), không phải ở luồng điều khiển.
 
 ## 5. Checkpoint còn mở
 
 1. Tool result lớn làm context phình: compaction, clearing, subagent hợp tình huống nào, đánh đổi là gì? **Đã trả lời** ở mục 2.
 2. Một ví dụ nên dùng workflow và một ví dụ nên dùng agent; tiêu chí quyết định? **Đã trả lời** ở mục 4.
-3. Đặt checkpoint con người ở đâu trong agent (liên hệ tool xoá), và vì sao không đặt ở mọi bước? **Chưa trả lời.**
+3. Đặt checkpoint con người ở đâu trong agent (liên hệ tool xoá), và vì sao không đặt ở mọi bước? **Mới trả lời một phần** (mục 4): đặt ở chỗ hành động khó hoàn tác, như approval trước khi deploy prod. Còn thiếu lý do không đặt ở mọi bước, viết bằng lời của mình.
 4. Khi nào lưu thông tin ra memory ngoài context, chọn scope thế nào, scope sai gây hậu quả gì? **Chưa trả lời.**
 5. Nối với T4: khi clearing hoặc compaction, vì sao không được động vào thinking block, và xử lý lịch sử thế nào thay vào đó? **Chưa trả lời đầy đủ** (xem mục 3).
