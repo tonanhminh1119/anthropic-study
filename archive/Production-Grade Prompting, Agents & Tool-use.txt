@@ -26,13 +26,13 @@ Checkpoint:
 
     **Checkpoint
     1. Prompt trả JSON đúng 95% số lần, 5% còn lại có câu dẫn "Here is the JSON" phía trước. Triệu chứng nào, kỹ thuật nào, và còn lớp đảm bảo nào mạnh hơn sửa prompt (nhớ lại Day 2–3)?
-        => Đây là triệu chứng của sampling và setting temperatue, cùng prompt có thể trả ra nhiều kết quả đúng nhưng bị sai forrmat và đồng thời cũng là case mà "Few-shot examples" đã đưa ra, Claude hiểu được đúng những gì cần làm nhưng đưa ra output sai định dạng. Ở bước này nên cung cấp example về output để claude có thể có một chuẩn chung về output
+        => Triệu chứng: nội dung đúng nhưng hình dạng output thỉnh thoảng sai (cùng một prompt, 5% lần có câu dẫn thừa). Đây là case "Few-shot examples" và "output constraint": Claude hiểu đúng việc cần làm nhưng đưa ra output sai định dạng, nên cung cấp example về output (và ràng buộc "chỉ trả JSON, không có lời dẫn") để có một chuẩn chung. Không chỉnh bằng temperature vì theo phản hồi, model mới từ chối tham số sampling. Lớp mạnh hơn sửa prompt: structured output hoặc strict tool use (ép output khớp schema), cộng validate và retry ở code khi vẫn sai.
     2. Phân loại 50.000 ticket. Nếu bật thinking và mỗi ticket tốn thêm trung bình 300 token output, giá Sonnet 5.5 là $10 mỗi 1M token output thì chi phí tăng thêm bao nhiêu? Tính bằng code.
         => như đã nói về chi phí thì ko có tài liệu chính thức về pricing token của thinking nên sẽ áp dung mức giá của chính model cho thinking thì với mỗi ticket tốn 300 token thì 50.000 ticket sẽ tốn 300*50.000=15.000.000 token (15M) tương đương 15 * $10 = $150 (giá $10 mỗi 1M token output)
     3. Vì sao xoá hoặc sửa thinking block làm request tiếp theo bị từ chối, và khi context phình ra thì bạn quản lý thế nào thay vì sửa block?
         => Claude bắt buộc thinking block giữ nguyên để giữ việc lý giải (reason) được nguyên vẹn và không bị can thiệp. Claude force điều này bằng cách tạo một signature chô mỗi block để confirm việc này, néu bạn thao tác WRITE/DELETE lên block thinking thì signature sẽ tự động bị  mismatch và claude sẽ từ chối request. Nếu lo ngại về việc context sẽ bị đôn lên thì Anthropic đưaa ra giải pháp là context-engineering work (chưa được học trong module này)
     4. Khi nào dùng XML tag? Viết một prompt ngắn nhúng dữ liệu người dùng vào bằng XML tag và giải thích tag làm gì.
-        => Khi muốn đưa ra hướng dẫn hay sample trong prompt thì nên dùng XML tag
+        => Khi prompt trộn dữ liệu biến đổi (input người dùng, tài liệu) với hướng dẫn thì dùng XML tag, để model phân biệt đâu là hướng dẫn, đâu là dữ liệu cần xử lý (model xem mọi thứ trong prompt như nhau nếu không có tag)
         <task>Trích xuất dữ liệu từ tài liệu thành một object json theo đúng định dạng trong ví dụ.</task>
         <example>
             <doc>Tôi là Alex, 28 tuổi, hiện đang ở Da Nang.</doc>
@@ -61,7 +61,8 @@ Checkpoints
     Tool result lớn làm context phình nhanh. Compaction, clearing và subagent: mỗi cái hợp với tình huống nào, và đánh đổi là gì?
     => đã có trong note ở trên
     Cho một ví dụ nên dùng workflow và một ví dụ nên dùng agent. Tiêu chí quyết định của bạn là gì?
-    => Mình đọc sơ qua thì mình thấy workflow và agant giống nhau ở input và output nhưng tách biệt nhau khi đi vào process. Workflow có một pattern và constraint nhất định xuyên suốt quá trình làm việc trong khi agent chỉ cần biết input và output và không quá quan trọng quá trình. Mình thấy khá tương tự khi ta lưu SQL và NoSQL, cả 2 đều cùng lưu một kết quả, nhưng để lưu SQL thì cần định nghĩa trước schema, transaction và phải thực hiện với một số rule được định nghĩa từ trước, object truyền vào cần được convert thành loại cấu trúc tương ứng trong Table. Trong khi với NoSQL ta chỉ cần lưu thẳng cả object vào (không khuyến khích lám nhưng có thể làm được), khi lưu NoSQL ta có thể fetch API này fetch API kia và cứ append result dần dần.
+    => (Đã chỉnh theo phản hồi) Workflow và agent khác nhau ở việc ai quyết định luồng điều khiển. Workflow: các bước do code mình định sẵn (như state machine hay pipeline), model chỉ làm việc trong từng bước. Agent: model tự quyết định bước tiếp theo trong vòng lặp, dựa trên kết quả trung gian. Với agent quá trình rất quan trọng (giới hạn số vòng, trace log, kiểm soát chi phí), chỉ là mình không viết sẵn nó. Ví dụ SQL/NoSQL trước đó chưa đúng: SQL/NoSQL khác nhau ở hình dạng dữ liệu (schema chặt hay không), không phải ở luồng điều khiển.
+    Tiêu chí: các bước biết trước và lặp lại được thì dùng workflow (dễ dự đoán, rẻ hơn, dễ test); các bước phụ thuộc kết quả trung gian và không liệt kê trước được thì dùng agent. Ví dụ workflow: xử lý hoá đơn (trích xuất, kiểm tra, ghi DB). Ví dụ agent: điều tra một bug trong codebase.
     Đặt checkpoint con người ở đâu trong một agent (liên hệ tool xoá), và vì sao không đặt ở mọi bước?
     Khi nào nên lưu thông tin ra memory ngoài context, và chọn scope thế nào? Chọn scope sai gây hậu quả gì?
     Nối với T4: khi clearing hoặc compaction, vì sao không được động vào thinking block (carry-back)? Bạn xử lý lịch sử thế nào thay vào đó?

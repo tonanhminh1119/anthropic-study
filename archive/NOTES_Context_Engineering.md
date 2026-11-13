@@ -32,14 +32,22 @@ Quy tắc chọn nhanh:
 
 ## 4. Workflow và agent
 
-Cách mình đang hiểu (cần kiểm chứng): hai bên giống nhau ở input và output, khác nhau ở quá trình. Workflow đi theo pattern và constraint định sẵn xuyên suốt. Agent chỉ cần biết input và output, còn quá trình do model quyết định. Mình ví với SQL (schema và rule định nghĩa trước) và NoSQL (lưu thẳng object, append dần).
+Khác nhau ở **ai quyết định luồng điều khiển**:
+- **Workflow:** các bước do code mình định sẵn (như state machine hay pipeline), model chỉ làm việc trong từng bước.
+- **Agent:** model tự quyết định bước tiếp theo trong vòng lặp, dựa trên kết quả trung gian.
 
-Chưa có ví dụ cụ thể và tiêu chí quyết định rõ ràng, phần này cần làm tiếp.
+Với agent, quá trình rất quan trọng (giới hạn số vòng, trace log, kiểm soát chi phí), chỉ là mình không viết sẵn nó.
+
+**Tiêu chí quyết định:**
+- Các bước biết trước và lặp lại được: workflow (dễ dự đoán, rẻ hơn, dễ test). Ví dụ: xử lý hoá đơn (trích xuất, kiểm tra, ghi DB).
+- Các bước phụ thuộc kết quả trung gian và không liệt kê trước được: agent. Ví dụ: điều tra một bug trong codebase.
+
+Lưu ý: ví dụ SQL/NoSQL mình dùng ban đầu chưa đúng, vì chúng khác nhau ở hình dạng dữ liệu (schema chặt hay không), không phải ở luồng điều khiển.
 
 ## 5. Checkpoint còn mở
 
 1. Tool result lớn làm context phình: compaction, clearing, subagent hợp tình huống nào, đánh đổi là gì? **Đã trả lời** ở mục 2.
-2. Một ví dụ nên dùng workflow và một ví dụ nên dùng agent; tiêu chí quyết định? **Mới trả lời một phần** (mục 4), chưa có ví dụ.
+2. Một ví dụ nên dùng workflow và một ví dụ nên dùng agent; tiêu chí quyết định? **Đã trả lời** ở mục 4.
 3. Đặt checkpoint con người ở đâu trong agent (liên hệ tool xoá), và vì sao không đặt ở mọi bước? **Chưa trả lời.**
 4. Khi nào lưu thông tin ra memory ngoài context, chọn scope thế nào, scope sai gây hậu quả gì? **Chưa trả lời.**
 5. Nối với T4: khi clearing hoặc compaction, vì sao không được động vào thinking block, và xử lý lịch sử thế nào thay vào đó? **Chưa trả lời đầy đủ** (xem mục 3).
