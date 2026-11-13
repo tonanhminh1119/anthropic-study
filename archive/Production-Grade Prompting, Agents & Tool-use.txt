@@ -24,26 +24,44 @@ Checkpoint:
     + Strip the thinking block out of conversation history to save context before the next tool call. -> Never do this. The signature no longer matches and the next request is rejected. Manage accumulated reasoning with context engineering, not by editing the blocks.
 => trong tài liệu ko mô tả cụ thể về giá của extended thinking nhưng mình tìm thấy article "https://platform.claude.com/docs/en/build-with-claude/thinking" "Thinking has a cost: the tokens Claude spends reasoning are billed as output tokens, even when the thinking text isn’t returned to you, and they count toward max_tokens alongside the response text" cho thấy Anthropic tính chi phí của thinking vào trong output_tokens luôn cho nên có thể xem là chi phí của thinking tương đương chi phí token của model
 
-1. Prompt trả JSON đúng 95% số lần, 5% còn lại có câu dẫn "Here is the JSON" phía trước. Triệu chứng nào, kỹ thuật nào, và còn lớp đảm bảo nào mạnh hơn sửa prompt (nhớ lại Day 2–3)?
-    => Đây là triệu chứng của sampling và setting temperatue, cùng prompt có thể trả ra nhiều kết quả đúng nhưng bị sai forrmat và đồng thời cũng là case mà "Few-shot examples" đã đưa ra, Claude hiểu được đúng những gì cần làm nhưng đưa ra output sai định dạng. Ở bước này nên cung cấp example về output để claude có thể có một chuẩn chung về output
-2. Phân loại 50.000 ticket. Nếu bật thinking và mỗi ticket tốn thêm trung bình 300 token output, giá Sonnet 5.5 là $10 mỗi 1M token output thì chi phí tăng thêm bao nhiêu? Tính bằng code.
-    => như đã nói về chi phí thì ko có tài liệu chính thức về pricing token của thinking nên sẽ áp dung mức giá của chính model cho thinking thì với mỗi ticket tốn 300 token thì 50.000 triệu ticket sẽ tốn 300*50.000=150000 token tương đương 10$/150000token = 0.0001$
-3. Vì sao xoá hoặc sửa thinking block làm request tiếp theo bị từ chối, và khi context phình ra thì bạn quản lý thế nào thay vì sửa block?
-    => Claude bắt buộc thinking block giữ nguyên để giữ việc lý giải (reason) được nguyên vẹn và không bị can thiệp. Claude force điều này bằng cách tạo một signature chô mỗi block để confirm việc này, néu bạn thao tác WRITE/DELETE lên block thinking thì signature sẽ tự động bị  mismatch và claude sẽ từ chối request. Nếu lo ngại về việc context sẽ bị đôn lên thì Anthropic đưaa ra giải pháp là context-engineering work (chưa được học trong module này)
-4. Khi nào dùng XML tag? Viết một prompt ngắn nhúng dữ liệu người dùng vào bằng XML tag và giải thích tag làm gì.
-    => Khi muốn đưa ra hướng dẫn hay sample trong prompt thì nên dùng XML tag
-    <task>Trích xuất dữ liệu từ tài liệu thành một object json theo đúng định dạng trong ví dụ.</task>
-    <example>
-        <doc>Tôi là Alex, 28 tuổi, hiện đang ở Da Nang.</doc>
-        <output>
-        {
-            "name": "Alex",
-            "age": 28,
-            "city": "Da Nang"
-        }
-        </output>
-    </example>
+    **Checkpoint
+    1. Prompt trả JSON đúng 95% số lần, 5% còn lại có câu dẫn "Here is the JSON" phía trước. Triệu chứng nào, kỹ thuật nào, và còn lớp đảm bảo nào mạnh hơn sửa prompt (nhớ lại Day 2–3)?
+        => Đây là triệu chứng của sampling và setting temperatue, cùng prompt có thể trả ra nhiều kết quả đúng nhưng bị sai forrmat và đồng thời cũng là case mà "Few-shot examples" đã đưa ra, Claude hiểu được đúng những gì cần làm nhưng đưa ra output sai định dạng. Ở bước này nên cung cấp example về output để claude có thể có một chuẩn chung về output
+    2. Phân loại 50.000 ticket. Nếu bật thinking và mỗi ticket tốn thêm trung bình 300 token output, giá Sonnet 5.5 là $10 mỗi 1M token output thì chi phí tăng thêm bao nhiêu? Tính bằng code.
+        => như đã nói về chi phí thì ko có tài liệu chính thức về pricing token của thinking nên sẽ áp dung mức giá của chính model cho thinking thì với mỗi ticket tốn 300 token thì 50.000 triệu ticket sẽ tốn 300*50.000=150000 token tương đương 10$/150000token = 0.0001$
+    3. Vì sao xoá hoặc sửa thinking block làm request tiếp theo bị từ chối, và khi context phình ra thì bạn quản lý thế nào thay vì sửa block?
+        => Claude bắt buộc thinking block giữ nguyên để giữ việc lý giải (reason) được nguyên vẹn và không bị can thiệp. Claude force điều này bằng cách tạo một signature chô mỗi block để confirm việc này, néu bạn thao tác WRITE/DELETE lên block thinking thì signature sẽ tự động bị  mismatch và claude sẽ từ chối request. Nếu lo ngại về việc context sẽ bị đôn lên thì Anthropic đưaa ra giải pháp là context-engineering work (chưa được học trong module này)
+    4. Khi nào dùng XML tag? Viết một prompt ngắn nhúng dữ liệu người dùng vào bằng XML tag và giải thích tag làm gì.
+        => Khi muốn đưa ra hướng dẫn hay sample trong prompt thì nên dùng XML tag
+        <task>Trích xuất dữ liệu từ tài liệu thành một object json theo đúng định dạng trong ví dụ.</task>
+        <example>
+            <doc>Tôi là Alex, 28 tuổi, hiện đang ở Da Nang.</doc>
+            <output>
+            {
+                "name": "Alex",
+                "age": 28,
+                "city": "Da Nang"
+            }
+            </output>
+        </example>
 
-    <doc>
-    Tôi tên là Minh, năm nay 26 tuổi và đang sống ở Việt Nam.
-    </doc>
+        <doc>
+        Tôi tên là Minh, năm nay 26 tuổi và đang sống ở Việt Nam.
+        </doc>
+
+
+3. Context Engineering
+- Ta đã từng nói về Context window, là số token tối đa model xử lý được trong một request, tính cả input lẫn output. Và với một cuộc hội thoại giữa user và claude khi mà context càng ngày càng lớn do ta lưu trữ câu hỏi và response ở input của mỗi request, thì sẽ có lúc lượng token sẽ vượt qua khỏi hạn mức của context window, model đang dùng sẽ trả output được tạo ra cho tới lúc này kèm với một model_context_window_exceeded stop reason và thế là hết cuọc trò chuyện sẽ dừng ở đây. Để hạn chế tình trạng này xảy ra, nói cách kkkhasc là để tối ưu context ta có 4 giải pháp sau: Pruning, Compaction, Clearing và Subagent Handoffs
+- Pruning: giải pháp này cho phép bạn nhảy về một message trước đó và tiếp tục từ đây, đồng thời loại bỏ toàn bộ cuộc hội thoại đã diễn ra trước đó sau message này. Chỉ nên áp dụng phương pháp này khi Claude đã trở nên không hiệu quả hay việc các cuộc debug tới lui được tích lũy nhưng lại chẳng giúp ích gì cho task sau. Lưu ý rằng những gì đã diễn ra sau message được chọn đều sẽ bị xóa, bao gồm những phát hiện, kiến thức claude đã phát hiện, muốn tìm lại thì claude phải học lại toàn bộ. Ta có thể xem 1 ví dụ đơn giản như khi ta quản lý git repo, nếu phát hiện branch hiện tại đã trở nên kém, khó quản lý, và khó để tiếp tục phát triển một cách hợp lý, luôn có một option là quay lại một commit nơi mà mọi sự sai lầm chưa diễn ra, reset toàn bộ repo về lại trạng thái của commit đó và discard toàn bộ code hiện tại để start over lại
+- Compaction: Tóm gọn toàn bộ cuộc đối thoại thành một phiên bản cô đặc lại và chỉ giữ các thông tin quan trọng và tất nhiên bản tóm gọn luốn sẽ rẻ hơn bản full rất rất nhiều. Hình dung nó như cả một Library được build và publish thành DLL để giảm đi dung lượng của file, RAM usage và dễ mang đi tới các service khác. Giải pháp này hoạt dộng tốt nhất khi bạn gần chạm ngưỡng context window nhưng vẫn muốn tiếp tục phát triển feature hiện tại và cũng muốn giữ các kiến thức Claude đã học được cho tới thời điểm này. Tuy nhiên khi tóm gọn lại thì đương nhiên là các detail sẽ bị mất đi, những thứ ko được lưu lại trong summary đều sẽ bị mất, như khi convert về DLL thì ta sẽ ko thể đọc được code hay nghiệp vụ bên trong các hàm.
+- Clearing: bắt đầu một cuọc hội thoại hoàn toàn mới và kko dem theo bất kỳ thứu gì từ cuộc hội thoại trước. Nói nôm na chính là ta bắt đầu hẳn một project mới ko hề liên quan đến project cũ. Mọi thứ cho task kế (project kế) đều mới hoàn toàn và hoàn toàn ko liên quan đến task cũ. Làm như vậy mọi context của session trước đều mất cả. Nếu muốn lưu trữ gì thì phải cố định nó trong ở một nơi như CLAUDE.md
+- Subagent HHHandoffs: khởi tạo một subagent có context window độc lập và chỉ được giao cho một task cụ thể với mô tả và sýtem prompt cần thiết. Subagent sẽ tự thực hiện và chỉ trả về cho ta kết quả dưới dạng 1 summary.  Chi áp dụng khi subagent có thể tự cung tự cấp để có thể bàn giao, đặc biệt là các đầu việc diễn ra với việc khám phá context chính một cách rối rắm nhưng phản hồi lại rất ít và ngắn. Dùng phương án này thì ta chỉ có thể nhìn thấy được subagent start và đi thẳng đến kết quả nó sum lại mà ko thể trực quan quá trình thưc hiện
+
+Checkpoints
+    Tool result lớn làm context phình nhanh. Compaction, clearing và subagent: mỗi cái hợp với tình huống nào, và đánh đổi là gì?
+    => đã có trong note ở trên
+    Cho một ví dụ nên dùng workflow và một ví dụ nên dùng agent. Tiêu chí quyết định của bạn là gì?
+    => Mình đọc sơ qua thì mình thấy workflow và agant giống nhau ở input và output nhưng tách biệt nhau khi đi vào process. Workflow có một pattern và constraint nhất định xuyên suốt quá trình làm việc trong khi agent chỉ cần biết input và output và không quá quan trọng quá trình. Mình thấy khá tương tự khi ta lưu SQL và NoSQL, cả 2 đều cùng lưu một kết quả, nhưng để lưu SQL thì cần định nghĩa trước schema, transaction và phải thực hiện với một số rule được định nghĩa từ trước, object truyền vào cần được convert thành loại cấu trúc tương ứng trong Table. Trong khi với NoSQL ta chỉ cần lưu thẳng cả object vào (không khuyến khích lám nhưng có thể làm được), khi lưu NoSQL ta có thể fetch API này fetch API kia và cứ append result dần dần.
+    Đặt checkpoint con người ở đâu trong một agent (liên hệ tool xoá), và vì sao không đặt ở mọi bước?
+    Khi nào nên lưu thông tin ra memory ngoài context, và chọn scope thế nào? Chọn scope sai gây hậu quả gì?
+    Nối với T4: khi clearing hoặc compaction, vì sao không được động vào thinking block (carry-back)? Bạn xử lý lịch sử thế nào thay vào đó?
