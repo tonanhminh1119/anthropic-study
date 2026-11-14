@@ -28,7 +28,15 @@ Quy tắc chọn nhanh:
 
 - Thinking block phải được gắn lại nguyên vẹn trong lịch sử. Sửa hoặc xoá thì signature không còn khớp và request tiếp theo bị từ chối.
 - Vì vậy khi context phình, không xử lý bằng cách cắt thinking block khỏi lịch sử. Cách đúng là dùng các giải pháp ở mục 2, tức quản lý ở cấp cuộc hội thoại chứ không sửa từng block.
-- Chi tiết "compaction/clearing xử lý thinking block cụ thể ra sao" mình chưa học, cần tra docs.
+
+**Carry-back không mâu thuẫn với compaction/clearing.** Carry-back chỉ cấm sửa, tóm tắt hoặc xoá lẻ từng thinking block còn nằm trong lịch sử đang gửi. Compaction và clearing đều mở một context mới (khác nhau ở chỗ có mang summary của phần cũ hay không; compaction ở nhiều công cụ vẫn cùng cuộc trò chuyện nhưng lịch sử bị thay bằng summary), nên thinking block cũ không còn trong lịch sử, không có gì để mismatch. Giảm context thì làm ở ranh giới giữa các lượt đã hoàn tất. Không nén hay cắt giữa lượt tool-use đang dở (đã có `tool_use` kèm thinking block, đang chờ `tool_result`), vì block đó vẫn phải được gửi lại nguyên vẹn.
+
+**Thinking block của các lượt cũ có bị API tự bỏ không?** Tuỳ model (tra từ docs Thinking). Sonnet 5.5 thuộc nhóm "giữ tất cả các lượt" (Sonnet 4.6 trở lên): thinking block của các lượt trước vẫn nằm trong context và bị tính như input token, chỉ các model cũ mới tự bỏ. Nên trên Sonnet 5.5 chi phí thinking tích luỹ theo hội thoại (nối với câu 2 của T4). Quy tắc ba mức:
+- **Bắt buộc** gửi lại thinking block trong lượt tool-use đang chạy.
+- **Khuyến nghị** gửi lại mọi thứ giữa các lượt.
+- **Được phép** bỏ thinking của các lượt cũ khi không đang tool use, nhưng không bỏ một block nằm giữa hai block mình giữ.
+
+Muốn đổi mặc định thì dùng chiến lược xoá thinking block `clear_thinking_20251015` trong context editing, do API xử lý chứ không phải mình sửa từng block.
 
 ## 4. Workflow và agent
 
@@ -58,6 +66,6 @@ Lưu ý: ví dụ SQL/NoSQL mình dùng ban đầu chưa đúng, vì chúng khá
 
 1. Tool result lớn làm context phình: compaction, clearing, subagent hợp tình huống nào, đánh đổi là gì? **Đã trả lời** ở mục 2.
 2. Một ví dụ nên dùng workflow và một ví dụ nên dùng agent; tiêu chí quyết định? **Đã trả lời** ở mục 4.
-3. Đặt checkpoint con người ở đâu trong agent (liên hệ tool xoá), và vì sao không đặt ở mọi bước? **Mới trả lời một phần** (mục 4): đặt ở chỗ hành động khó hoàn tác, như approval trước khi deploy prod. Còn thiếu lý do không đặt ở mọi bước, viết bằng lời của mình.
+3. Đặt checkpoint con người ở đâu trong agent (liên hệ tool xoá), và vì sao không đặt ở mọi bước? **Đã trả lời** (mục 4 và mục "Human-in-the-loop" trong `Production-Grade Prompting, Agents & Tool-use.txt`): đặt ở chỗ hành động khó hoàn tác (trước tool xoá, sau planning, khi output bất thường); không đặt ở mọi bước vì người sẽ duyệt qua loa và agent mất lợi thế tự động.
 4. Khi nào lưu thông tin ra memory ngoài context, chọn scope thế nào, scope sai gây hậu quả gì? **Chưa trả lời.**
-5. Nối với T4: khi clearing hoặc compaction, vì sao không được động vào thinking block, và xử lý lịch sử thế nào thay vào đó? **Chưa trả lời đầy đủ** (xem mục 3).
+5. Nối với T4: khi clearing hoặc compaction, vì sao không được động vào thinking block, và xử lý lịch sử thế nào thay vào đó? **Đã trả lời** ở mục 3: không sửa lẻ block vì signature; giảm context bằng cách thay thế hoặc cắt cả lịch sử ở ranh giới giữa các lượt đã hoàn tất.
