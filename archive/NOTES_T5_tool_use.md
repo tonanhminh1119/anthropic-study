@@ -101,9 +101,66 @@ What is Linh's member ID? ...
 - Hành vi này không được bảo đảm tuyệt đối vì model chọn theo xác suất, nên code vẫn phải validate input.
 - Thiết kế tốt hơn: thêm tool thứ hai `find_member_by_name` để model tự nối hai tool (tìm ID, rồi lấy tin nhắn). Mình chưa thử.
 
-## 8. Còn lại và việc cần kiểm tra
+## 8. Context engineering: 4 cách giữ context trong giới hạn
+
+Khi hội thoại dài vượt context window, model trả output kèm stop reason `model_context_window_exceeded` và cuộc trò chuyện dừng. Bốn cách tối ưu:
+
+| Cách | Làm gì | Hợp khi | Đánh đổi |
+|---|---|---|---|
+| Pruning | Quay về một message trước, bỏ mọi thứ sau nó | Phần sau chỉ là debug tới lui vô ích | Mất cả những gì Claude đã khám phá, phải học lại |
+| Compaction | Tóm cả hội thoại thành bản cô đặc | Gần chạm ngưỡng nhưng vẫn muốn làm tiếp và giữ kiến thức | Chi tiết không có trong summary là mất |
+| Clearing | Bắt đầu hội thoại mới, không mang gì | Task kế tiếp không liên quan task cũ | Mất hết, cái gì cần giữ phải ghi vào CLAUDE.md |
+| Subagent handoff | Subagent có context riêng, chỉ trả về summary | Việc khám phá nhiều nhưng kết quả ngắn | Không thấy được quá trình, chỉ thấy kết quả |
+
+**Carry-back vs compaction/clearing: không mâu thuẫn.** Carry-back chỉ cấm sửa, tóm tắt hoặc xoá lẻ từng thinking block còn nằm trong lịch sử đang gửi (signature mismatch thì request bị từ chối). Compaction và clearing đều mở một context mới (khác nhau ở chỗ có mang summary hay không), nên thinking block cũ không còn trong lịch sử, không có gì để mismatch. Giảm context thì làm ở tầng hội thoại, ở ranh giới giữa các lượt đã hoàn tất. Không nén hay cắt giữa lượt tool-use đang dở (đã có `tool_use` kèm thinking block, đang chờ `tool_result`), vì block đó vẫn phải được gửi lại nguyên vẹn.
+
+## 9. Agent construction
+
+- **Workflow vs agent** khác nhau ở ai quyết định luồng điều khiển. Workflow: code định sẵn các bước, model làm việc trong từng bước. Agent: model tự quyết định bước tiếp theo dựa trên kết quả trung gian. Các bước biết trước và lặp lại thì workflow (rẻ, dễ test, ví dụ xử lý hoá đơn). Các bước phụ thuộc kết quả trung gian thì agent (ví dụ điều tra bug). Thực tế hay kết hợp: pipeline là workflow, agent chỉ cắm vào bước cần suy luận mở.
+- **3 wiring path** (single-agent), khác nhau ở mức mình sở hữu runtime:
+
+| | Raw message API loop | Agent SDK | Claude Managed Agents |
+|---|---|---|---|
+| Ai chạy vòng lặp | Code của mình | SDK, trong process của mình | Anthropic (loop và sandbox) |
+| Mình sở hữu | Toàn bộ: loop, tool, context, retry, exit | Việc thực thi tool và ứng dụng | Lớp ứng dụng và định nghĩa agent |
+| Chọn khi | Cần kiểm soát từng bước | Muốn bộ máy giống Claude Code, chạy ở môi trường mình | Chạy dài (phút/giờ), muốn managed sandbox |
+| Kiểm tra trước | Chi phí bảo trì là của mình | `settingSources` phải set tường minh | Không đủ điều kiện ZDR/HIPAA BAA, đang public beta (beta header `managed-agents-2026-04-01`) |
+
+- **4 bước wiring chung cho mọi path:** (1) đăng ký tool, (2) đặt system prompt hẹp theo task, (3) xử lý tool-use loop (code của mình vẫn thực thi tool kể cả khi dùng SDK), (4) định nghĩa exit condition (không có thì agent gọi tool vượt nhu cầu).
+- **`settingSources`:** trong Agent SDK, việc CLAUDE.md và skills có được nạp hay không do cấu hình này quyết định. Không dựa vào default: `["user", "project", "local"]` để giống CLI, `[]` để cô lập hoàn toàn. Đối chiếu Agent SDK reference khi build.
+
+## 10. Human-in-the-loop (HITL)
+
+Câu hỏi quyết định chèn ở đâu: nếu bước này chạy mà không có người kiểm tra thì kết quả tệ nhất là gì? Ba điểm chèn:
+- Trước destructive tool call (write, delete, send): rủi ro cao, không hoàn tác được.
+- Sau bước planning: rủi ro trung bình, plan sai thì kết quả sai dù mọi bước đúng.
+- Khi output bất thường (error flag, kết quả rỗng, giá trị ngoài giới hạn): rủi ro thay đổi, bắt lỗi mà retry không giải quyết được.
+
+Không đặt ở mọi bước vì người sẽ duyệt qua loa và agent mất lợi thế tự động.
+
+## 11. Agent memory: chọn scope cho state sống qua session
+
+| Scope | State ở đâu | Hợp khi | Mất gì |
+|---|---|---|---|
+| In-context | Trong hội thoại đang chạy | Session ngắn, vừa context window | Mất hết khi session kết thúc, token tăng theo độ dài |
+| External storage | Database, đọc lại khi cần | State sống qua session, chia sẻ giữa user/agent | Thêm độ trễ và logic đọc/ghi |
+| Summarized | Bản tóm tắt chèn vào session sau | Agent hội thoại chạy lâu | Chi tiết summarizer không giữ lại |
+| Stateless | Không lưu gì | Job một lần, mỗi session độc lập | Toàn bộ context trước |
+
+- Chọn scope ngay lúc thiết kế. Mặc định "lưu hết trong messages" chạy tốt ở prototype nhưng chi phí và độ trễ tăng theo từng lượt, cuối cùng chạm giới hạn cứng. Refactor lúc đó không khó (vài trăm dòng và một DB có sẵn) nhưng đắt vì làm dưới áp lực production.
+- Đừng giả định "window sẽ đủ lớn". Đo token usage thực tế của session dài so với giới hạn window trước khi cam kết.
+- Summarized memory phụ thuộc summarizer prompt: viết không rõ thì state quan trọng bị rơi ở mỗi lần nén.
+
+## 12. Skills (SKILL.md)
+
+- Skill là file markdown tái sử dụng (frontmatter `name` + `description`, bên dưới là instruction). Lúc khởi động chỉ nạp name và description, nội dung đầy đủ chỉ nạp khi request khớp description.
+- So sánh: Skill nạp theo yêu cầu (chi phí thấp, hợp chuyên môn theo task). CLAUDE.md nạp mọi session (overhead cố định, hợp chuẩn dự án luôn đúng). In-context instructions có mặt mọi lượt trong session, mất khi hết session.
+- **Subagent không tự thừa hưởng Skills** và lịch sử của session cha, phải liệt kê Skill trong cấu hình subagent. Nhưng permission context thì được thừa hưởng.
+- Skills trên Messages API đang beta: cần hai beta header `code-execution-2025-08-25` và `skills-2025-10-02`, chạy trong code execution container. Header có thể đổi, kiểm tra docs hiện tại trước khi build production.
+
+## 13. Còn lại và việc cần kiểm tra
 
 - Chưa thử `enum`, `strict: true`, tool thứ hai nối với tool đầu, chưa thử nhánh `is_error` bằng lỗi thật.
 - Việc cần làm trong code: nới description của `get_member_messages` lên 3–4 câu (nêu cả khi nào không dùng), cân nhắc bật `strict: true`.
 - Các mục "cần kiểm tra" trước đây (giới hạn `name`, tên field, phí token, ba loại tool) đã được đối chiếu docs và cập nhật ở trên.
-- Phần còn lại của T5 (context engineering, agents) học sau.
+- Mục 8–12 ghi theo tài liệu khoá học, chưa đối chiếu docs chính thức. Cần kiểm tra lại: beta header của Managed Agents và Skills, mặc định của `settingSources`, việc API có tự bỏ thinking block của các lượt cũ đã hoàn tất hay không.
