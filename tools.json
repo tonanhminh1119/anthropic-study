@@ -1,0 +1,52 @@
+[
+    {
+        "name": "find_member_by_name",
+        "description": "Look up one member by name. Returns the member object including their id. Use first when you only know the member's name",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "String name"
+                }
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "get_member_messages",
+        "description": "Return the messages of one member by numeric ID, optionally filtered by event type.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "member_id": {
+                    "type": "integer",
+                    "description": "Numeric member ID"
+                },
+                "event_type": {
+                    "type": "string",
+                    "enum": ["newyear", "christmas", "birthday", "welcome"]
+                }
+            },
+            "required": ["member_id"]
+        }
+    },
+    {
+        "name": "delete_message",
+        "description": "Delete a specific message from one member by numeric ID. Use only when the user explicitly asks to delete a message.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "member_id": {
+                    "type": "integer",
+                    "description": "Numeric member ID"
+                },
+                "message_id": {
+                    "type": "integer",
+                    "description": "Numeric message ID"
+                }
+            },
+            "required": ["member_id", "message_id"]
+        }
+    }
+]

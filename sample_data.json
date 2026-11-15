@@ -1,0 +1,62 @@
+[
+    {
+        "id" : 1,
+        "name" : "Minh",
+        "messages":[
+            {
+                "id": 1,
+                "name": "Năm mới",
+                "type": "newyear",
+                "text": "Happy new year"
+            },
+            {
+                "id": 2,
+                "name": "Giáng sinh",
+                "type": "christmas",
+                "text": "Merry X-mas"
+            },
+            {
+                "id": 3,
+                "name": "Chào mừng",
+                "type": "welcome",
+                "text": "Nice to meet you"
+            }
+        ]
+    },
+    {
+        "id" : 2,
+        "name" : "Hùng",
+        "messages":[
+            {
+                "id": 1,
+                "name": "Chào mừng",
+                "type": "birthday",
+                "text": "Nice to meet you"
+            },
+            {
+                "id": 2,
+                "name": "Chào mừng",
+                "type": "welcome",
+                "text": "Nice to meet you"
+            }
+        ]
+    },
+    {
+        "id" : 3,
+        "name" : "Linh",
+        "messages":[
+            {
+                "id": 1,
+                "name": "Chào mừng",
+                "type": "birthday",
+                "text": "Nice to meet you"
+            },
+            {
+                "id": 2,
+                "name": "Chào mừng",
+                "type": "welcome",
+                "text": "Nice to meet you"
+            }
+        ]
+    }
+]
