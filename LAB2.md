@@ -52,7 +52,9 @@ RESULT: {"deleted": true, "message_id": 2, "summary": "Đã xoá tin nhắn welc
 Linh after:  [(1, 'birthday')]
 ```
 
-Xoá đúng một tin. Model bỏ qua `get_member_messages` vì kết quả của `find_member_by_name` đã chứa danh sách tin kèm `type`, nên chỉ cần 2 vòng tool. JSON cuối hợp lệ ngay lần đầu.
+Xoá đúng một tin. Ở trace này model bỏ qua `get_member_messages` vì kết quả của `find_member_by_name` đã chứa danh sách tin kèm `type`, nên chỉ cần 2 vòng tool. JSON cuối hợp lệ ngay lần đầu.
+
+> **Lưu ý:** kết quả không lặp lại hoàn toàn giữa các lần chạy. Ở lần chạy lại, model gọi thêm `get_member_messages(member_id=3, event_type='welcome')` trước khi xoá (4 vòng, 4662 token thay vì 3 vòng, 3282 token). Kết quả cuối giống nhau.
 
 ### B — Cùng yêu cầu, trả lời `n`
 
@@ -97,6 +99,8 @@ Linh after:  [(1, 'birthday')]
 
 Vòng lặp dừng đúng ở 2 vòng, không treo, không im lặng. Nhưng **tin đã bị xoá thật** trước khi vòng lặp dừng: `delete_message` chạy ở vòng 2 (vòng cuối được phép) rồi mới hết lượt, nên model không có lượt nào để báo lại. Phiên bản đầu của code chỉ trả `"(dừng: hết 2 vòng)"`, người gọi không biết việc xoá đã xảy ra. Sau khi sửa, thông báo dừng liệt kê các hành động có tác dụng phụ đã thực thi (xem mục 5).
 
+> **Lưu ý:** trạng thái cuối của D phụ thuộc đường đi model chọn trong lần chạy đó. Cả hai lần chạy D đều xoá ở vòng 2, nhưng nếu model đi theo đường dài như lần chạy lại của A (tìm → lọc → xoá) thì giới hạn 2 vòng sẽ cắt **trước khi xoá** và `Linh after` còn nguyên. Cùng một cấu hình có thể cho hai trạng thái cuối khác nhau.
+
 ## 4. Kiểm tra bổ sung
 
 - **Validate input** (không gọi API): gọi `_run_tool` với một khối giả `delete_message` thiếu `message_id`:
@@ -140,6 +144,6 @@ Vòng lặp dừng đúng ở 2 vòng, không treo, không im lặng. Nhưng **t
 | **Agent** | Model tự chọn tool kế tiếp trong vòng lặp cho đến khi xong | Số bước không biết trước; yêu cầu đa dạng; cần tự xử lý lỗi và hỏi lại | Bài này chọn agent vì yêu cầu đa dạng (xem, lọc, xoá, mơ hồ, member không tồn tại). Trace cho thấy lợi ích: ở A model tự bỏ qua `get_member_messages`; ở C tự đổi cách thử; với "Delete a message of Minh" thì tự hỏi lại. Cái giá: khó dự đoán (C thử lại thừa) và cần các lớp bảo vệ ngoài model (HITL, validate, giới hạn vòng/token) |
 | **Subagent** | Một agent phụ có context riêng, nhận một việc con và chỉ trả về bản tóm tắt cho agent chính | Việc con tạo nhiều context nhiễu hoặc chạy song song được; hoặc cần tách quyền hạn | **Chưa cần** ở bài này: 3 tool nhỏ, cả hội thoại chỉ ~3k token. Nên dùng nếu mở rộng sang "dọn các tin welcome trùng nội dung của hàng nghìn member": một subagent chỉ-đọc quét và trả danh sách ứng viên, agent chính (có HITL) mới được xoá. Cách này giữ context của agent chính gọn và tách quyền xoá khỏi quyền đọc |
 
-**Nhận xét về workflow.** Workflow phù hợp khi các yêu cầu có cùng một dạng và **đường đi xử lý biết trước**, ví dụ "xoá tin loại X của member Y". Code cố định chuỗi: tìm member → lọc tin theo loại → xác nhận → xoá; LLM chỉ dùng một lần để trích `member_name` và `event_type` từ câu tự nhiên (nếu đầu vào đã có cấu trúc sẵn như form hay API thì không cần LLM). So với agent, workflow rẻ hơn (1 lần gọi thay vì 3 vòng, khoảng 3.3k token ở kịch bản A), dễ đoán hơn và đảm bảo bước xác nhận luôn chạy, nhưng kém linh hoạt với yêu cầu ngoài khuôn (mơ hồ, nhiều tin cùng loại khớp, member không tồn tại), và phải tự viết quy tắc cho từng trường hợp đó. Tiêu chí quyết định không phải là "đơn giản" mà là đường đi có biết trước hay không.
+**Nhận xét về workflow.** Workflow phù hợp khi các yêu cầu có cùng một dạng và **đường đi xử lý biết trước**, ví dụ "xoá tin loại X của member Y". Code cố định chuỗi: tìm member → lọc tin theo loại → xác nhận → xoá; LLM chỉ dùng một lần để trích `member_name` và `event_type` từ câu tự nhiên (nếu đầu vào đã có cấu trúc sẵn như form hay API thì không cần LLM). So với agent, workflow rẻ hơn (1 lần gọi thay vì 3–4 vòng, khoảng 3.3k–4.7k token ở kịch bản A), dễ đoán hơn (đường đi cố định nên không dao động giữa các lần chạy như agent, xem lưu ý ở kịch bản A và D) và đảm bảo bước xác nhận luôn chạy, nhưng kém linh hoạt với yêu cầu ngoài khuôn (mơ hồ, nhiều tin cùng loại khớp, member không tồn tại), và phải tự viết quy tắc cho từng trường hợp đó. Tiêu chí quyết định không phải là "đơn giản" mà là đường đi có biết trước hay không.
 
 Quy tắc chọn ngắn gọn: bắt đầu từ cách đơn giản nhất đáp ứng được bài toán (một lần gọi → workflow → agent → nhiều agent), và chỉ nâng cấp khi thật sự cần sự linh hoạt hoặc cô lập context.
