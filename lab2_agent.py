@@ -30,9 +30,10 @@ def _find_member(member_id):
     )
 
 def find_member_by_name(name):
+    # Chỉ trả id và name: tin nhắn lấy riêng bằng get_member_messages (mỗi tool một việc)
     for m in FAKE_DB:
         if m["name"] == name:
-            return m
+            return {"id": m["id"], "name": m["name"]}
     raise ValueError(f"No member named '{name}'. Check the spelling or ask the user.")
 
 
@@ -176,7 +177,7 @@ SCENARIOS = {
 }
 
 def linh_state():
-    return [(x["id"], x["type"]) for x in find_member_by_name("Linh")["messages"]]
+    return [(x["id"], x["type"]) for x in get_member_messages(find_member_by_name("Linh")["id"])]
 
 def run_scenario(key):
     global CONFIRM, FAKE_DB
@@ -191,7 +192,7 @@ def run_scenario(key):
     print("Linh after: ", linh_state())
 
 if __name__ == "__main__":
-    # py demo_agents.py        -> chạy A, B, C, D
-    # py demo_agents.py A      -> chỉ chạy kịch bản A (có thể: A C ...)
+    # py lab2_agent.py        -> chạy A, B, C, D
+    # py lab2_agent.py A      -> chỉ chạy kịch bản A (có thể: A C ...)
     for k in [a.upper() for a in sys.argv[1:]] or list(SCENARIOS):
         run_scenario(k)

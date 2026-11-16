@@ -9,7 +9,7 @@ Agent nhận yêu cầu bằng ngôn ngữ tự nhiên về tin nhắn của cá
 
 | Tool | Tham số | Tác dụng |
 |---|---|---|
-| `find_member_by_name` | `name` | Trả về object member (gồm `id` và danh sách tin) |
+| `find_member_by_name` | `name` | Trả về **chỉ `id` và `name`** của member (so khớp chính xác, phân biệt hoa thường) |
 | `get_member_messages` | `member_id`, `event_type` (tuỳ chọn) | Trả về tin của member, có thể lọc theo loại |
 | `delete_message` | `member_id`, `message_id` | Xoá một tin. **Tool duy nhất có tác dụng phụ** |
 
