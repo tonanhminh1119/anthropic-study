@@ -122,8 +122,14 @@ Mode và deny rule quyết định agent **làm được gì mà không hỏi**.
 | Loại hành động | Đặt gate? | Cơ chế |
 |---|---|---|
 | Rủi ro thấp, hoàn tác được (sửa format, sửa trong working directory) | Không gate | `acceptEdits` |
-| Khó hoàn tác hoặc chạm đường dẫn nhạy cảm (ghi ngoài working directory, shell command phá hủy, sửa file bảo mật hoặc protected) | Gate: agent dừng và trình ra cho người trước khi chạy | **Deny rule** (cưỡng chế chắc chắn); `default` hoặc `plan` giữ prompt trong lúc người quyết định |
+| Khó hoàn tác hoặc chạm đường dẫn nhạy cảm (ghi ngoài working directory, shell command phá hủy, sửa file bảo mật hoặc protected) | Cần chặn hoặc gate (xem phân biệt bên dưới) | **Deny rule** nếu không có ca nào đáng cho phép; `default` hoặc `plan` (hoặc rule dạng ask nếu bản đang dùng có) nếu cần người quyết định từng lần |
 | Thay đổi code team đã đánh dấu nhạy cảm | **Agent không bao giờ là gate duy nhất**: người phải review trước khi merge, dù agent hoặc phần tự review của nó nghe tự tin đến đâu | Review của người (agent chỉ là đầu vào cho quyết định của người) |
+
+**Deny rule không phải human gate.** Deny là chặn cứng, không có người trong vòng quyết định. Gate đúng nghĩa là chỗ agent **dừng và hỏi người**. Hai trường hợp khác nhau:
+- "Không bao giờ xóa file": **deny**, vì không có ca nào đáng để người duyệt.
+- "Ghi ra ngoài working directory": nên **hỏi** (`default`, hoặc rule dạng ask **[ngoài tài liệu, cần kiểm tra bản đang dùng]**), vì có ca hợp lệ mà người cần xem.
+
+(Tài liệu gộp cả hai trong một câu: deny cưỡng chế chắc chắn, `default` hoặc `plan` giữ prompt. Phân biệt trên là cách đọc cho rõ.)
 
 **Chọn mode và đặt gate là cùng một quyết định nhìn từ hai phía:** mode đặt mặc định cho cả session, gate là chỗ ghi đè mặc định đó cho một hành động có chi phí quá cao để phó mặc.
 

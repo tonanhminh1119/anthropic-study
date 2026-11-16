@@ -67,7 +67,7 @@ paths:
 |---|---|---|---|---|
 | **CLAUDE.md** | Toàn bộ nội dung, gắn vào đầu context | Mọi session, vô điều kiện | Cố định mỗi session; loãng khi phình to | Ràng buộc phổ quát, lệnh, quyết định framework |
 | **Rules file** | Nội dung file; có `paths` thì giới hạn theo glob, không có thì nạp như CLAUDE.md | Khi Claude đọc file khớp `paths`; rule không giới hạn nạp lúc khởi động | Có `paths`: chỉ thêm khi bị kích hoạt. Không `paths`: tốn cố định như CLAUDE.md | Hướng dẫn riêng cho một đường dẫn, sẽ là nhiễu ở chỗ khác |
-| **Hook** | Chạy script tại sự kiện, không thêm nội dung vào context | Tại sự kiện cấu hình (`PreToolUse`, `PostToolUse`...) | Tối thiểu: chỉ output của script nếu được trả về cho Claude | Guardrail cưỡng chế, tác dụng phụ tự động, audit log |
+| **Hook** | Chạy script tại sự kiện; không nạp nội dung tĩnh vào context | Tại sự kiện cấu hình (`PreToolUse`, `PostToolUse`...) | Tối thiểu: chỉ **output** của script nếu được trả về cho Claude. **[ngoài tài liệu]** Output của `UserPromptSubmit` và `SessionStart` có thể được thêm vào context | Guardrail cưỡng chế, tác dụng phụ tự động, audit log |
 | **Subagent** | Chỉ context của task, tách biệt khỏi session chính | Khi session chính giao việc | Trả về bản tóm tắt, không phải toàn bộ lịch sử task | Khám phá, điều tra, task có output làm phình context; việc chia nhỏ để chạy song song |
 
 **Nên dùng cho:** project quay lại qua nhiều session, nơi bộ quy tắc ổn định, biến thể theo thư mục, hoặc guardrail vô điều kiện đáng công setup.
@@ -87,6 +87,13 @@ Hai điểm cần phân biệt:
 | `tools` truyền vào | Tool có sẵn của agent, cộng allow/deny rule và permission mode |
 | Chọn model, effort, tham số | Cấu hình model, flag, settings |
 | Code bao quanh vòng lặp (giới hạn vòng, HITL, validate output như Lab 2) | Permission mode, hooks (cưỡng chế bằng code) |
+
+Ba chỗ đặt cần phân biệt: **CLAUDE.md** (luôn nạp, mềm), **settings và hooks** (cưỡng chế), **Skill** (quy trình nạp theo nhu cầu; chi tiết sẽ học sau, tài liệu hiện chỉ nói chuyển nội dung không cần luôn nạp sang Skills).
+
+Ví dụ ràng buộc "không bao giờ xóa file":
+- **Mềm:** dòng trong CLAUDE.md. Agent làm theo phần lớn thời gian nhưng không bảo đảm.
+- **Cứng:** deny rule hoặc hook `PreToolUse` (exit code 2). Deny enterprise còn có hiệu lực ở bypass.
+- **Lưu ý:** xóa file còn đi qua **shell** (`rm` qua Bash). Chỉ chặn tool Edit/Write thì `rm` vẫn lọt; phải có rule khớp lệnh shell, hoặc hook kiểm tra nội dung lệnh.
 
 Cách nhớ: CLAUDE.md và rules là phần **nói với model** (mềm, có thể bị bỏ sót); settings, deny rule và hooks là phần **code bao quanh model** (cứng, model không lách được).
 
