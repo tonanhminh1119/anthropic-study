@@ -14,8 +14,8 @@ Agent nhận yêu cầu bằng ngôn ngữ tự nhiên về tin nhắn của cá
 | `delete_message` | `member_id`, `message_id` | Xoá một tin. **Tool duy nhất có tác dụng phụ** |
 
 ```powershell
-py .\lab2_agent.py        # chạy lần lượt A, B, C, D
-py .\lab2_agent.py A      # chỉ chạy một kịch bản (có thể: A C)
+py .\labs\lab2\lab2_agent.py        # chạy lần lượt A, B, C, D
+py .\labs\lab2\lab2_agent.py A      # chỉ chạy một kịch bản (có thể: A C)
 ```
 
 Mỗi kịch bản nạp lại `sample_data.json` nên độc lập với nhau. Kịch bản A, B tự trả lời bước xác nhận (`y` / `n`, in dòng `[auto]`) để trace chạy lại được. Chạy tay không có kịch bản thì bước xác nhận hỏi bằng `input()`.

@@ -116,7 +116,7 @@ def demo_streaming():
 
 def demo_caching():
     """Prompt caching: system prompt dài được cache, lượt 2 sẽ có cache_read."""
-    with open(os.path.join(BASE_DIR, "archive", "Building with the Claude API.txt"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "..", "archive", "Building with the Claude API.txt"), encoding="utf-8") as f:
         long_text = f.read()
     system = [{
         "type": "text",

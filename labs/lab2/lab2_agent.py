@@ -1,23 +1,25 @@
 from dotenv import load_dotenv
 from anthropic import Anthropic
 import json
+import os
 import jsonschema
 import re
 import sys
 
 load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 client = Anthropic(max_retries=3)
 model = "claude-sonnet-5-5"
 
 tools = {}
-with open('tools.json', 'r', encoding='utf-8' ) as file:
+with open(os.path.join(BASE_DIR, 'tools.json'), 'r', encoding='utf-8' ) as file:
     tools = json.load(file)
 
 
 SCHEMAS = {t["name"]: t["input_schema"] for t in tools}
 FAKE_DB = {}
 # read JSON file and parse contents
-with open('sample_data.json', 'r', encoding='utf-8' ) as file:
+with open(os.path.join(BASE_DIR, 'sample_data.json'), 'r', encoding='utf-8' ) as file:
     FAKE_DB = json.load(file)
 
 def _find_member(member_id):
@@ -182,7 +184,7 @@ def linh_state():
 def run_scenario(key):
     global CONFIRM, FAKE_DB
     prompt, answer, rounds = SCENARIOS[key]
-    with open('sample_data.json', 'r', encoding='utf-8') as f:   # DB sạch cho mỗi kịch bản
+    with open(os.path.join(BASE_DIR, 'sample_data.json'), 'r', encoding='utf-8') as f:   # DB sạch cho mỗi kịch bản
         FAKE_DB = json.load(f)
     CONFIRM = answer
     print("=" * 20, f"Scenario {key}: {prompt} | confirm={answer} | max_rounds={rounds}")
