@@ -253,7 +253,7 @@ Phần cuối của tài liệu: cho workflow một **điểm vào tường minh
 - **Complexity:** đường dẫn tuyệt đối hay giả định môi trường (ví dụ `python` có trên PATH) trong skill hoặc hook sẽ chạy trên máy tác giả và hỏng trên máy khác. **[docs]** Người cài nhận **bản copy trong plugin cache**; dùng `${CLAUDE_PLUGIN_ROOT}/...` cho đường dẫn trong plugin. **[ngoài tài liệu, suy ra]** File ngoài thư mục plugin không đi theo gói.
 - **Risk:** plugin chỉ mang theo thành phần nó **khai báo** (skill, subagent, hook, MCP server). Deny rule trong `settings.json` cục bộ **không** nằm trong gói, nên skill dựa vào guardrail đó sẽ mất rào chắn trên máy đồng nghiệp.
   - Cách giảm: đặt guardrail thành **hook trong plugin** (`PreToolUse`, exit code 2); hoặc dùng **managed settings** nếu bắt buộc cho cả tổ chức.
-  - **[docs, chưa kiểm chứng]** Bảng control matrix ghi `allowManagedHooksOnly` "doesn't trust hooks from plugins users enable themselves": nếu tổ chức bật, hook trong plugin có thể không chạy.
+  - **[docs]** Bảng control matrix ghi `allowManagedHooksOnly` "doesn't trust hooks from plugins users enable themselves". Đã đối chiếu (xem [NOTES_W3D3_Enterprise_Integration.md](NOTES_W3D3_Enterprise_Integration.md) mục 8.1): nếu tổ chức bật, hook trong plugin do **người dùng tự bật** bị chặn, còn plugin do admin **ép bật** trong `enabledPlugins` của managed settings thì **vẫn chạy**. Nghĩa là guardrail dạng hook-trong-plugin chỉ ổn định dưới `allowManagedHooksOnly` khi plugin đó do admin ép bật.
   - Skill là chỉ dẫn mềm nên không coi là rào chắn (xem W3D1).
 
 ## 7. Còn lại và việc cần kiểm tra

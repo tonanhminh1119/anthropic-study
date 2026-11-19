@@ -124,7 +124,7 @@ Hướng nhìn "giống một authentication provider" là **hữu ích**: các 
 **Cần chỉnh (ví dụ so sánh):**
 - **Ý của bạn là đúng:** endpoint của provider (`openid-configuration`, `jwks_uri`), TLS, CORS, cookie là cấu hình **dùng chung, do bên vận hành đặt, client và người dùng cuối không đổi được**. Đó chính là tinh thần của managed config. (Lần đầu mình đọc lệch thành "tác dụng của JWK".)
 - **Chỗ khác nhau duy nhất là hướng cưỡng chế** **[ngoài tài liệu]**: TLS/CORS/cookie do **server** áp lên mọi client kết nối tới nó. Managed config do admin **đẩy xuống từng máy client** (Claude Code của từng dev) và đè lên cấu hình cá nhân. Vì Claude Code chạy trên máy dev, nên cần cơ chế "đẩy chính sách xuống endpoint" như Group Policy/MDM, tức là ghi đè theo thứ tự ưu tiên, chứ không thể chỉ dựa vào server. Phần `openid-configuration` còn là metadata *mô tả* endpoint; việc cưỡng chế nằm ở cấu hình server phía sau nó.
-- **Logging không thuộc managed config** theo bài. Log do **hook `PostToolUse`** đảm nhiệm, và bài chỉ ngầm ý (cột "ai khóa" trong checklist) là cấu hình cần được khóa; tài liệu không nói cách khóa hook. Chưa kiểm chứng, xem mục 8.
+- **Logging không thuộc managed config** theo bài. Log do **hook `PostToolUse`** đảm nhiệm, và bài chỉ ngầm ý (cột "ai khóa" trong checklist) là cấu hình cần được khóa; bài không nói cách khóa hook. **[docs]** Đã đối chiếu: hook **khóa được qua managed settings**, xem mục 8.1.
 
 ### 7.4 Data residency
 
@@ -138,10 +138,26 @@ Hướng nhìn "giống một authentication provider" là **hữu ích**: các 
 
 ## 8. Còn lại và việc cần kiểm tra
 
-- Chưa kiểm chứng: hook `PostToolUse` có được **khóa qua managed settings** không và bằng cơ chế nào (bài chỉ ngầm ý qua bảng checklist). Cần đọc docs trước khi khẳng định.
+### 8.1 Hook có khóa qua managed settings được không: **được** **[docs]**
+
+Kết quả đối chiếu docs (do mình đối chiếu và ghi lại, chưa tự chạy thử):
+- Hook định nghĩa trong **managed settings** thì hook ở scope user, project, local **chỉ thêm vào**, không gỡ hay vô hiệu hóa được hook managed.
+- `disableAllHooks` đặt **ngoài** managed settings cũng không tắt được hook managed.
+- `allowManagedHooksOnly`: chặn **mọi hook ngoài managed** (user, project, local, plugin), **trừ** hook từ plugin được **ép bật** trong `enabledPlugins` của managed settings.
+- Với audit: hook `PostToolUse` ghi log đặt ở managed settings là cách để log **không bị dev tắt hay bỏ qua**. Hoàn thiện câu trả lời cho cột "ai khóa config" ở checklist mục 6.
+
+### 8.2 Truy ra người khi dùng service account chung: **suy luận, chưa kiểm chứng thực tế** **[ngoài tài liệu]**
+
+- Theo phần docs đã đọc, input của hook có `session_id`, `cwd`, `tool_name`, `tool_input`, `tool_use_id`, nhưng **không thấy trường danh tính người dùng**.
+- Hook chạy **trên máy dev**, nên script hook phải **tự ghi thêm** OS user hoặc user đã đăng nhập vào log.
+- Sau đó **đối chiếu với log phía service** theo thời gian và `session_id`.
+- Cách thứ hai: chọn **xác thực theo người dùng (OAuth)** ngay từ đầu, vì token gắn với một người cụ thể. Đây chính là lý do câu hỏi "model hành động dưới danh nghĩa ai" nằm ở đầu bài (mục 1).
+- Lưu ý: OS user do script tự ghi vào log là dữ liệu do máy dev cung cấp, độ tin cậy kém hơn danh tính do provider xác thực. Nên cân nhắc khi log dùng cho kiểm toán. **[ngoài tài liệu]**
+
+### 8.3 Còn mở
+
 - Bài nhắc "nền tảng triển khai ghim vùng" và "infrastructure requirement ở phần trước của module" nhưng đoạn đã nhận không nêu cụ thể nền tảng nào. Bổ sung khi nhận phần đó.
-- Chưa thực hành: thử một MCP server OAuth (Linear/Sentry) và `claude mcp login/logout` để thấy luồng consent; thử hook `PostToolUse` ghi log ra file.
-- Câu hỏi mở của mình: với remote-service (một service account chung), làm sao vẫn truy ra **người** đứng sau mỗi tool call khi audit? Bài chỉ nêu "danh tính có audit được không" mà chưa trả lời cho trường hợp này.
+- Chưa thực hành: thử một MCP server OAuth (Linear/Sentry) và `claude mcp login/logout` để thấy luồng consent; thử hook `PostToolUse` ghi log ra file, kèm ghi OS user (mục 8.2); thử `allowManagedHooksOnly` để thấy hook plugin tự bật bị chặn.
 
 ---
 
@@ -214,3 +230,72 @@ Không cái nào khó làm, nhưng **tất cả đều khó vá sau khi** triể
 ### Sợi chỉ chung xuyên module **[ngoài tài liệu]**
 - **Mode và deny rule, hook và CLAUDE.md, transport và scope, xác thực và quản trị:** lần nào cũng là hai lớp, một lớp *chọn mức* (mềm, theo ngữ cảnh) và một lớp *ranh giới cứng* (không ghi đè được). Chọn đúng lớp cho đúng vấn đề là điểm chung của cả bảy ý.
 - Ba ý cuối (4, 5, 7) cùng nhắc một bài học: thiết kế cho môi trường **không phải của mình** (máy khác, người khác, kiểm toán) ngay từ đầu, vì sửa sau rất đắt.
+
+---
+
+## 10. Cumulative integration checkpoint: tìm 3 bug trong 3 lớp
+
+Đề: một tích hợp có ba bug nằm ở ba lớp của module (cấu hình Claude Code, plugin/đóng gói, MCP/xác thực). Với mỗi file: nêu bug và một câu mô tả hành vi lúc chạy. **[docs]** = đối chiếu trang permissions của docs Claude Code (đọc 2026-11-19); **[ngoài tài liệu]** = suy luận của mình.
+
+| File | Lớp | Bug | Bạn đã tìm ra? |
+|---|---|---|---|
+| `.claude/settings.json` | Cấu hình Claude Code | `defaultMode: bypassPermissions` trên máy dev; deny rule duy nhất là chốt chặn cuối và hẹp | Chưa (đúng như bạn nói là mảng yếu) |
+| `.claude/skills/migration-validate/SKILL.md` | Đóng gói | Đường dẫn tuyệt đối tới máy tác giả | Đúng bug, cách sửa cần chỉnh |
+| `.mcp.json` | MCP/xác thực | Token production ghi thẳng trong file | Đúng, thiếu bước rotate |
+
+### 10.1 File 1: `settings.json`
+
+```json
+{ "permissions": { "defaultMode": "bypassPermissions", "deny": ["Read(.env.production)"] } }
+```
+
+**Bug:** mode **`bypassPermissions`** được chọn làm mặc định. Đây là quyết định rủi ro bị đưa về thành quyết định tiện lợi (Key Takeaway 1, mục 9).
+
+**Hành vi lúc chạy (một câu):** Claude Code bỏ qua gần như mọi prompt xin phép, nên agent đọc, sửa, chạy lệnh trên codebase thật mà không ai duyệt, và deny rule trên `.env.production` trở thành **chốt chặn duy nhất**, trong khi chốt đó chỉ phủ một phần.
+
+**Phân tích:**
+- **[docs]** `bypassPermissions` "skips permission prompts", kể cả khi ghi vào path được bảo vệ như `.git`, `.claude`. Docs dặn chỉ dùng trong **môi trường cô lập (container, VM)** nơi Claude Code không gây hại được. Máy dev với repo thật không phải môi trường đó.
+- **Cách sửa lớp mode:** dùng mode đòi hỏi duyệt (mặc định, hoặc `plan` khi đang khám phá); bypass chỉ trong container/VM. **[docs]** Muốn cấm hẳn thì đặt `permissions.disableBypassPermissionsMode: "disable"`, thường để trong **managed settings** để không bị ghi đè.
+- **Deny rule này đúng cú pháp, không phải chỗ sai.** **[docs]** Read/Edit dùng cú pháp gitignore; tên file trần như `Read(.env.production)` khớp ở **mọi độ sâu** dưới thư mục hiện tại (giống `Read(**/.env.production)`). Không cần sửa cú pháp.
+- **Nhưng deny rule không kín.** **[docs]** Read deny áp cho tool file có sẵn và cho vài lệnh Bash mà Claude Code nhận diện (`cat`, `head`, `tail`, `sed`, `tee`, redirection). Nó **không** áp cho lệnh đọc file mà không nêu tên (ví dụ `grep -r pattern .` chạy ở thư mục chứa file), hoặc tiến trình con tự mở file (script Python/Node). Docs khuyên **bật sandbox** để chặn ở mức OS. Ở bypass mode không có prompt nào để bắt các đường đó.
+- **Phạm vi hẹp:** chỉ một file; `.env`, `.env.local` và các secret khác không được phủ. **[ngoài tài liệu]** Nên dùng mẫu rộng hơn như `Read(.env*)` và bổ sung `sandbox`.
+- **Liên hệ mục 1 của note này:** mode chỉnh *mức hỏi*, deny rule chỉnh *ranh giới cứng*. Ở đây mức hỏi bị tắt hết, nên ranh giới cứng phải kín; deny một file thì chưa kín.
+
+> Kiểm chứng còn thiếu: trang permissions mình đọc không nói thẳng "deny rule vẫn được đánh giá ở bypass mode" (mình dựa vào Key Takeaway 1 và thứ tự deny, ask, allow). Cần thử thật trước khi khẳng định tuyệt đối.
+
+### 10.2 File 2: `SKILL.md`
+
+```
+1. Run: /Users/priya/scripts/validate-migration.sh
+```
+
+**Bug:** bước chạy script dùng **đường dẫn tuyệt đối tới thư mục home của tác giả** (Key Takeaway 5).
+
+**Hành vi lúc chạy (một câu):** trên mọi máy khác ngoài máy của Priya (kể cả Windows và Linux) file không tồn tại nên bước 1 hỏng, và migration có thể chạy tiếp mà **chưa hề được validate** dù skill vẫn hiện là đã cài.
+
+**Đánh giá câu trả lời của bạn:** đúng bug. Cách sửa cần chỉnh một chút:
+- Giải pháp chính **không phải biến môi trường**, mà là **đường dẫn tương đối theo root project** (đặt script trong repo, ví dụ `scripts/validate-migration.sh`) hoặc, nếu đóng gói thành plugin, `${CLAUDE_PLUGIN_ROOT}/...` (xem note W3D2 Packaging, mục 6 mục Complexity).
+- Biến môi trường dùng cho **giá trị khác nhau theo máy** (secret, cấu hình), không phải để định vị file đi kèm gói. Nếu skill vẫn cần biến môi trường thì phải **ghi lại hoặc kiểm tra lúc cài** (Key Takeaway 5).
+- **Test cài trên máy sạch** là cách bắt bug này (đề của takeaway 5).
+- **[ngoài tài liệu]** Còn một điểm phụ: "validate trước khi chạy production" trong `description` chỉ là **chỉ dẫn mềm** (xem W3D1). Skill không *ngăn* migration chạy khi validate thất bại; muốn chặn thật cần hook hoặc deny rule.
+
+### 10.3 File 3: `.mcp.json`
+
+```json
+"headers": { "Authorization": "Bearer sk-prod-warehouse-abc123" }
+```
+
+**Bug:** **token production ghi thẳng trong `.mcp.json`**, file thuộc project scope và được commit (Key Takeaway 7 và mục 3 của note này).
+
+**Hành vi lúc chạy (một câu):** kết nối vẫn hoạt động, nhưng credential đi theo mọi lần commit, clone, share và nằm lại trong lịch sử git, nên ai có quyền đọc repo đều dùng được token production.
+
+**Đánh giá câu trả lời của bạn:** đúng. Bổ sung:
+- **Sửa:** tham chiếu biến môi trường, ví dụ `"Authorization": "Bearer ${WAREHOUSE_TOKEN}"` (**[docs]** `.mcp.json` hỗ trợ `${VAR}` trong `headers`; xem note MCP mục 9). Đặt tên biến riêng; một số biến credential nổi tiếng như `ANTHROPIC_API_KEY`, `NPM_TOKEN` luôn đọc ra rỗng trong header từ xa.
+- **Phải rotate token ngay**, vì giá trị cũ đã vào lịch sử git; xóa khỏi file không thu hồi được (mục 3, nguyên tắc 3). Đây là phần bạn chưa nêu.
+- **Còn nên làm:** scope token hẹp nhất cho tác vụ; với token dùng chung thì dùng **secret store**; hoặc chọn OAuth nếu dịch vụ hỗ trợ và cần danh tính người dùng (mục 2).
+- Phần còn lại của file đúng: `type: http` và URL từ xa hợp với server dùng chung của nhóm (Key Takeaway 6).
+
+### 10.4 Rút ra từ bài checkpoint
+
+- Ba bug đều là biến thể của một lỗi: **một quyết định thuận tiện cho tác giả** (bypass cho đỡ prompt, đường dẫn máy mình, token dán thẳng cho chạy được) **lọt vào cấu hình dùng chung** (mục 9, ý 1, 5, 7).
+- Cách soát nhanh một cấu hình trước khi chia sẻ: (1) mode có khớp rủi ro, và ranh giới cứng có kín? (2) có đường dẫn hay giả định của riêng máy mình? (3) có secret nằm trong file sẽ commit?
