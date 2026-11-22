@@ -1,6 +1,6 @@
 # Notes Week 3 Day 7: MCP nâng cao, Transport và Communication (message, stdio, Streamable HTTP, state)
 
-Nguồn: tài liệu khóa học phần Advanced MCP, gồm 5 đoạn: "JSON message types", "The STDIO transport", "The StreamableHTTP transport", "StreamableHTTP in depth", "State and the StreamableHTTP transport", kèm các slide minh họa (chưa lưu vào `archive/`). Chưa đối chiếu docs Claude Code hay spec MCP trong lần ghi này. **[ngoài tài liệu]** = suy luận hoặc kiến thức bổ sung của mình, không phải của khóa học. **[kiểm tra]** = chỗ cần đối chiếu lại với spec hoặc thực hành.
+Nguồn: tài liệu khóa học phần Advanced MCP, gồm 5 đoạn: "JSON message types", "The STDIO transport", "The StreamableHTTP transport", "StreamableHTTP in depth", "State and the StreamableHTTP transport", kèm các slide minh họa (chưa lưu vào `archive/`). Bản đầu chưa đối chiếu docs Claude Code hay spec MCP; sau đó đã bổ sung theo một bản review ngoài (do bạn gửi) và tra cứu trang spec 2026-07-28 (ngày 2026-11-22). Mình chưa tự đọc toàn văn spec. **[ngoài tài liệu]** = suy luận hoặc kiến thức bổ sung của mình, không phải của khóa học. **[spec]** = đã đối chiếu spec MCP theo cách vừa nêu. **[kiểm tra]** = chỗ cần đối chiếu lại với spec hoặc thực hành.
 
 Liên hệ với note trước: [NOTES_W3D2_MCP_Servers.md](NOTES_W3D2_MCP_Servers.md) mục 5 đã có bảng transport (stdio, HTTP, SSE legacy) và cú pháp `claude mcp add`; mục 7 có scope; mục 6.1 có MCP connector của Messages API. [NOTES_W3D3_Enterprise_Integration.md](NOTES_W3D3_Enterprise_Integration.md) mục 9 (ý 6) tóm tắt "transport và scope". Note này đi sâu vào **tầng giao thức**: message trông thế nào, đi qua kênh nào, và vì sao HTTP khó hơn stdio.
 
@@ -34,7 +34,7 @@ Liên hệ với note trước: [NOTES_W3D2_MCP_Servers.md](NOTES_W3D2_MCP_Serve
 - Mỗi bên có không gian `id` **riêng** (id 1 của client không đụng id 1 của server khi server gửi request ngược lại).
 - Analogy .NET **[ngoài tài liệu]**: Request giống `Invoke` (chờ giá trị trả về), Notification giống `Send` (gửi rồi thôi).
 
-### 1.3 Tên `method` trên đường truyền **[ngoài tài liệu]**
+### 1.3 Tên `method` trên đường truyền **[ngoài tài liệu]**, khớp spec theo bản review
 
 Sơ đồ khóa học dùng tên kiểu TypeScript; tên thật trong JSON là `method`:
 
@@ -186,7 +186,7 @@ Chỉ sau đó mới gửi được `tools/call`, `prompts/list`... Với Stream
 | Tool List Changed | Sau khi đăng nhập hoặc bật plugin, server có thêm tool; client gọi lại `tools/list` (chính là `list_changed` ở W3D2 mục 3) |
 | Resource Updated **[ngoài tài liệu]** | Resource client đã đăng ký theo dõi vừa thay đổi |
 
-Slide xếp Cancelled ở phía client. **[ngoài tài liệu, kiểm tra]** Spec cho phép cả hai phía hủy request mình đã gửi; ví dụ phổ biến là client hủy khi người dùng bấm dừng.
+Slide xếp Cancelled ở phía client. **[spec]** Spec cho phép **cả hai phía** hủy request mình đã gửi; ví dụ phổ biến là client hủy khi người dùng bấm dừng.
 
 ## 4. Stdio transport
 
@@ -259,6 +259,7 @@ Dòng 2 là notification (không `id`, không phản hồi). Dòng 1 và 3 có `
   - Client → server **dễ**: server có URL cố định.
   - Server → client **khó**: client không có URL cố định (NAT, firewall, không lắng nghe cổng nào), server không biết gọi tới đâu.
 - Hình dung với hai ống (**[ngoài tài liệu]**): ở stdio, hai ống tồn tại sẵn suốt phiên. Ở HTTP thường, mỗi cặp request/response là một "ống" ngắn do **client mở**, hết response là đóng, server không còn đường nào để nói trước.
+- **Bảo mật khi mở server HTTP** **[spec, theo bản review]**: server Streamable HTTP phải **validate header `Origin`** (chống DNS rebinding), **bind `127.0.0.1`** khi chạy cục bộ, và có **authentication**. Bài chưa nhắc nhưng liên quan trực tiếp khi chuyển từ stdio sang HTTP.
 
 ### 5.2 Đối chiếu bốn mẫu: stdio và HTTP thường
 
@@ -269,7 +270,7 @@ Dòng 2 là notification (không `id`, không phản hồi). Dòng 1 và 3 có `
 | Server → Client **request** | ✓ | ✗ (server không biết địa chỉ client) |
 | Client → Server **response** | ✓ | **?** (cần server nhớ state để ghép với request nó đã hỏi) |
 
-Streamable HTTP có một cách giải "khéo léo" nhưng có điều kiện kèm theo (mục 5.3 và 6).
+Streamable HTTP có một cách giải "khéo léo" nhưng có điều kiện kèm theo (mục 5.3 và 6). Ô "?" là chỗ khó nhất khi scale ngang, xem suy luận ở mục 10.
 
 Bài liệt kê các message khó thực hiện với HTTP thuần: **server-initiated request** (Create Message, List Roots) và **notification** (Progress, Logging, **Initialized, Cancelled**). Lý do của Initialized có lời giải ở mục 6.2; **lý do của Cancelled bài chưa nói** (xem mục 10).
 
@@ -297,6 +298,8 @@ Client <==== SSE response, giữ mở lâu tùy ý ==== Server
 
 SSE này là thứ cho phép **server gửi request tới client**.
 
+**GET là tùy chọn** **[spec, theo bản review]**: client "MAY" mở GET, và server có thể trả **405** nếu không cung cấp stream này. Đừng coi bước 2 là luôn có.
+
 **Bước 3: mỗi lần gọi tool tạo thêm một kênh tạm**
 
 ```
@@ -311,7 +314,13 @@ Client <== SSE riêng cho lần gọi này, đóng khi Call Tool Result đã g�
 | **Kênh chính** | GET | Mở lâu | Request từ server → client; **Progress Notification** |
 | **Kênh theo từng tool call** | POST của lần gọi | Đóng khi Call Tool Result đã gửi | **Logging Message Notification**, **Call Tool Result** |
 
-**[kiểm tra]** Về Progress có mâu thuẫn trong chính khóa học: đoạn "in depth" xếp Progress vào kênh chính, còn đoạn "State" nói `json_response=True` (tắt streaming của POST) làm mất progress, tức progress cũng đi trong luồng POST. Spec mình nhớ cho notification gắn với một request đi cùng kênh của request đó, và slide về scale còn vẽ Create Message Request nằm trong POST SSE. **Cho kỳ thi: nhớ theo từng phát biểu của khóa học, và đối chiếu spec để biết đường đi chính xác.**
+**Về Progress, khóa học tự mâu thuẫn**: đoạn "in depth" xếp Progress vào kênh chính, còn đoạn "State" nói `json_response=True` (tắt streaming của POST) làm mất progress, tức progress cũng đi trong luồng POST. **[spec, theo bản review]** Spec quy định:
+- Message server gửi trên stream của **POST**: "SHOULD relate to the originating client request".
+- Message trên stream **GET**: "SHOULD be unrelated to any concurrently-running request".
+
+Progress luôn gắn với một request (qua `progressToken`), nên **theo spec nó đi trên stream của POST**; Logging gắn với request cũng vậy. Kênh GET dành cho message không gắn request nào (ví dụ `list_changed`, `resources/updated`). Slide về scale vẽ Create Message Request nằm trong POST SSE cũng nhất quán với cách đọc này.
+
+**Cho kỳ thi: giữ nguyên phát biểu của khóa học** (Progress → kênh chính). Phần spec ở trên là ghi chú riêng để hiểu đúng cơ chế.
 
 **So với stdio:**
 
@@ -335,12 +344,14 @@ Stdio có ống sẵn do OS tạo; HTTP phải **tự dựng** bằng session id
 - Client **không nhận session id**, server không theo dõi từng client. Mỗi request độc lập, instance nào xử lý cũng được.
 - Không có session id thì **server không ghép được đường GET SSE với request đang tới**, nên GET SSE không dùng được nữa.
 - **Mất:** server → client request, sampling, progress, subscription (Resource Updated...).
+- **Nuance** **[spec, theo bản review]**: **spec không có khái niệm "stateless mode"**; session id chỉ là MAY. `stateless_http` là **quy ước của Python SDK** (mỗi request dùng một transport/session mới). Tài liệu SDK xếp long-running tool và progress là **hạn chế**, không phải tắt hẳn. Tóm lại: **theo khóa học, stateless thì mất progress; thực tế phụ thuộc SDK.**
 - **Được:** scale ngang dễ, ít overhead kết nối, và **không cần bước khởi tạo (handshake)**: client gọi thẳng request. **[ngoài tài liệu, suy luận]** Đây có lẽ là lý do Initialized Notification nằm trong danh sách "bị ảnh hưởng" ở mục 5.2.
 
 ### 6.3 `json_response=True`
 
 - POST được trả bằng **một cục JSON cuối cùng** thay vì nhiều sự kiện SSE.
 - **Mất:** progress và log giữa chừng. Chỉ còn kết quả tool.
+- **[spec, theo bản review]** Spec cho phép server trả **một object JSON thay vì SSE**, nên mất progress và log giữa chừng là hệ quả tất yếu.
 
 ### 6.4 Hai cờ tắt hai thứ khác nhau
 
@@ -357,6 +368,25 @@ Cả hai mặc định là `false`. Cú pháp trong SDK Python: `FastMCP("mcp-se
 | `json_response=True` | Không cần streaming; muốn phản hồi đơn giản; tích hợp hệ thống cần JSON thuần |
 
 **Dev và production:** nếu dev bằng stdio mà deploy bằng HTTP thì hành vi giữa stateful và stateless có thể khác lớn. **Test bằng đúng transport và cấu hình sẽ dùng ở production.** Dấu hiệu nhận biết: chạy tốt với stdio ở local nhưng hỏng khi lên HTTP thì nghi hai cờ này.
+
+### 6.5 Bối cảnh phiên bản spec: 2025 và 2026-07-28
+
+Toàn bộ note này (và khóa học) mô tả MCP **thời kỳ spec 2025**: bắt tay `initialize`, `mcp-session-id`, kênh GET SSE. **[spec]** Bản spec **2026-07-28** (đã tra trang spec và changelog) thay đổi đáng kể phần Streamable HTTP:
+
+| Thay đổi | Nội dung |
+|---|---|
+| Bỏ handshake | Không còn `initialize` / `notifications/initialized`. Phiên bản giao thức và client capabilities đi trong `_meta` của **mỗi request**; có method mới `server/discover` để client lấy capabilities của server trước |
+| Bỏ session mức giao thức | Header `Mcp-Session-Id` bị **bỏ qua**, server không cấp và không lặp lại id |
+| Bỏ stream GET | GET hoặc DELETE tới endpoint MCP trả **405** |
+| Bỏ resumability | Không còn `Last-Event-ID` và id sự kiện SSE; stream đứt thì request đang chạy mất, client phải gửi lại với request id mới |
+| Server → client request | Sampling, elicitation, roots trả dưới dạng **input request trong `InputRequiredResult`**, không còn là request riêng trên một stream |
+| Thông báo thay đổi | Qua request `subscriptions/listen`, trả một SSE response dài |
+| Header bắt buộc | `Mcp-Method`, `Mcp-Name` trên POST; server từ chối nếu header và body không khớp |
+
+- **Hỗ trợ tùy SDK**: ví dụ Go SDK chỉ nhận 2026-07-28 qua HTTP khi đặt `Stateless = true`, còn muốn giữ session thì client sẽ thương lượng xuống 2025-11-25.
+- **[kiểm tra]** Một bài blog gọi bản này là release candidate trong khi trang spec trình bày như bản đã phát hành; xem trạng thái hiện tại trước khi dựa vào.
+- **Đề thi bám khóa học** (spec 2025). Phần này chỉ là **bối cảnh**: các khái niệm session id, GET SSE, hai cờ ở trên là đúng cho thế hệ 2025, và có thể không còn nguyên vẹn ở thế hệ mới.
+- Nguồn tra cứu: [Streamable HTTP, spec 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http), [Key Changes, spec 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [The 2026-07-28 Specification (blog)](https://blog.modelcontextprotocol.io/posts/2026-07-28/).
 
 ## 7. Tổng hợp: so sánh transport và điều cần nhớ cho kỳ thi
 
@@ -494,8 +524,11 @@ Câu hỏi thực tế: **tool có cần server → client không?** Đây là s
 
 ## 10. Còn lại và việc cần kiểm tra
 
-- **Đường đi của Progress**: khóa học nói kênh chính (GET), nhưng cũng nói `json_response=True` làm mất progress (nghĩa là đi trong luồng POST). Đối chiếu spec để biết đường đi chính xác (mục 5.3).
-- **Cancelled Notification** nằm trong danh sách "khó với HTTP" nhưng bài không giải thích. Initialized có lời giải hợp lý (stateless không cần handshake, mục 6.2) nhưng đó vẫn là suy luận của mình.
+- **Đã kiểm chứng theo bản review ngoài** (mình chưa tự đọc toàn văn spec): stdio (message cách nhau bằng xuống dòng, không chứa xuống dòng bên trong; log qua stderr; client đóng stdin để dừng); hai nhóm request/notification phân biệt bằng `id`; hai loại lỗi (JSON-RPC `error` và `isError: true`); session id cấp trong InitializeResult và kèm mọi request sau (spec viết `MCP-Session-Id`, HTTP không phân biệt hoa thường); `json_response`; Cancelled hủy được từ cả hai phía; bảng tên `method`.
+- **Đường đi của Progress**: đã có đáp án từ spec (mục 5.3): đi trên stream của POST vì gắn với request. Với đề thi vẫn giữ phát biểu của khóa học (kênh chính).
+- **Initialized** (suy luận, khớp thông tin tra được): stateless cho phép bỏ qua handshake nên Initialized không còn. **Cancelled** (suy luận, **[ngoài tài liệu]**, chưa kiểm chứng): khi scale ngang, POST chứa Cancelled có thể tới một instance **không biết request đang chạy** ở instance khác, nên hủy không có tác dụng.
+- **Ô "?" ở mục 5.2** (suy luận, **[ngoài tài liệu]**, chưa kiểm chứng): server gửi Create Message qua một stream, nhưng client trả Result bằng **một POST mới**, và POST đó có thể rơi vào instance **không giữ request đang chờ**. Nếu đúng thì đây là lý do stateless không làm sampling được, và là chỗ khó nhất của scale ngang.
+- Bối cảnh spec 2026-07-28 xem mục 6.5. Các bản SDK hiện tại hỗ trợ bản nào, và `stateless_http` của SDK Python thay đổi ra sao, chưa kiểm tra.
 - Các message ngoài slide (`tools/list`, `prompts/get`, `elicitation/create`, `ping`, Roots List Changed, Resource Updated) và tên `method` ở mục 1.3 lấy từ kiến thức spec của mình, chưa đối chiếu lại.
 - Ánh xạ hai cờ vào cơ chế (mục 6.4) khớp slide, nhưng chi tiết SDK (ví dụ `stateless_http` có kéo theo `json_response` hay không) chưa kiểm chứng.
 - Windows: mình nhớ docs Claude Code có lưu ý server stdio chạy bằng `npx` trên Windows native cần bọc `cmd /c`. **Chưa đối chiếu**; kiểm tra khi thực hành.
