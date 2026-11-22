@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// PreToolUse hook (bản đơn giản): chỉ chặn `rm -rf` và `git push --force`.
+// PreToolUse hook (bản đơn giản): chỉ chặn `rm -rf`, `git push --force` và `Remove-Item -Recurse -Force`.
+// Đây là denylist: chỉ chặn những dạng viết đã liệt kê, nên luôn còn cách lách (xem LAB3.md mục 6.4).
 //
 // Claude Code gọi script này và đưa JSON qua stdin, dạng:
 //   { "tool_name": "Bash", "tool_input": { "command": "rm -rf /tmp/x" }, ... }
@@ -25,12 +26,18 @@ let RULES = [
     pattern: /\bgit\s+push\b[^;&|\n]*\s(?:--force(?:-with-lease)?|-f)(?=\s|$)/i,
     reason: "force push ghi đè lịch sử trên remote",
   },
+  {
+    name: "Remove-Item -Recurse -Force",
+    // PowerShell: Remove-Item (hoặc alias ri) kèm cả -Recurse lẫn -Force, thứ tự bất kỳ.
+    pattern: /\b(?:Remove-Item|ri)\b(?=[^;&|\n]*\s-Recurse\b)(?=[^;&|\n]*\s-Force\b)/i,
+    reason: "Remove-Item -Recurse -Force xóa đệ quy không hỏi",
+  },
 ];
 
 // ---------------------------------------------------------------------------
-// (TÙY CHỌN) Dùng bộ luật đầy đủ từ file JSON thay cho RULES ở trên.
+// (TÙY CHỌN) Dùng bộ luật rộng hơn từ file JSON thay cho RULES ở trên.
 //
-// Bộ luật đầy đủ (rm -rf, git push --force, git reset --hard, git clean -f, SQL DROP/TRUNCATE/
+// Bộ luật rộng hơn (rm -rf, git push --force, git reset --hard, git clean -f, SQL DROP/TRUNCATE/
 // DELETE không WHERE, lệnh Windows, mkfs/dd...) nằm ở `destructive-rules.json` cùng thư mục.
 // Mỗi luật trong JSON là chuỗi: { name, pattern, flags, reason } — JSON không lưu được RegExp
 // nên `pattern` là chuỗi regex và `flags` là cờ ("i"); đoạn code dưới đây dựng lại thành RegExp.

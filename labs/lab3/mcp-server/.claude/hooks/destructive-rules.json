@@ -1,5 +1,5 @@
 {
-  "description": "Bộ luật đầy đủ cho block-destructive.js. Mỗi luật: name (tên hiển thị), pattern (chuỗi regex, JSON phải escape \\), flags (cờ regex), reason (lý do báo cho Claude). Chỉ được dùng khi bật đoạn đọc file này trong block-destructive.js.",
+  "description": "Bộ luật rộng hơn cho block-destructive.js (vẫn là denylist, không cover hết mọi cách xóa). Mỗi luật: name (tên hiển thị), pattern (chuỗi regex, JSON phải escape \\), flags (cờ regex), reason (lý do báo cho Claude). Chỉ được dùng khi bật đoạn đọc file này trong block-destructive.js.",
   "rules": [
     {
       "name": "rm -rf",

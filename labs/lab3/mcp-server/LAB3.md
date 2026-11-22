@@ -29,7 +29,7 @@ labs/lab3/
         ├── settings.json              # permissions (allow / ask / deny) + đăng ký hook PreToolUse
         ├── hooks/
         │   ├── block-destructive.js   # hook: chặn rm -rf và git push --force (đọc JSON từ stdin)
-        │   └── destructive-rules.json # bộ luật đầy đủ (12 luật), chỉ dùng khi bật đoạn loader trong hook
+        │   └── destructive-rules.json # bộ luật rộng hơn (12 luật, vẫn là denylist), chỉ dùng khi bật loader trong hook
         └── skills/triage-tickets/SKILL.md  # skill: triage ticket open, xuất bảng cố định (đã thử bằng /triage-tickets)
 ```
 
@@ -216,15 +216,16 @@ Cách hoạt động của script:
   **không** dùng `require`/`__dirname`).
 - Regex tìm cờ trong **cùng một lệnh** (dừng ở `;` `&` `|` xuống dòng), nên `rm foo && ls -f -r` không bị coi là `rm -rf`.
 
-Bản đơn giản chỉ chặn `rm -rf` (mọi thứ tự cờ: `-rf`, `-fr`, `-r -f`, `--recursive --force`) và
-`git push --force` / `-f` / `--force-with-lease`. Bộ luật đầy đủ (thêm `git reset --hard`, `git clean -f`,
-SQL `DROP`/`TRUNCATE`/`DELETE` không `WHERE`, `Remove-Item -Recurse -Force`, `rd /s /q`, `del /s /q`, `format`,
-`mkfs`, `dd of=/dev/`) nằm trong `destructive-rules.json`. JSON không lưu được RegExp nên mỗi luật là
+Bản đơn giản chặn `rm -rf` (mọi thứ tự cờ: `-rf`, `-fr`, `-r -f`, `--recursive --force`),
+`git push --force` / `-f` / `--force-with-lease`, và `Remove-Item -Recurse -Force` (PowerShell, kể cả alias `ri`).
+Bộ luật **rộng hơn** (thêm `git reset --hard`, `git clean -f`, SQL `DROP`/`TRUNCATE`/`DELETE` không `WHERE`,
+`rd /s /q`, `del /s /q`, `format`, `mkfs`, `dd of=/dev/`) nằm trong `destructive-rules.json`. Cả hai đều là
+**denylist** (chỉ chặn các dạng viết đã liệt kê), nên không "cover đủ": xem lưu ý về các cách lách bên dưới. JSON không lưu được RegExp nên mỗi luật là
 `{ name, pattern, flags, reason }`; đoạn loader (đang **để comment** trong hook) dựng lại thành RegExp.
 Bật bằng cách bỏ `//` ở 4 dòng (2 `import` + lệnh gán `RULES`).
 
 **Đã kiểm thử**
-- Bơm JSON giả vào stdin: bản đơn giản chặn đúng 14 lệnh và cho qua 18 lệnh; bản đọc JSON (bỏ comment loader, chạy
+- Bơm JSON giả vào stdin (trước khi thêm luật `Remove-Item` vào bản đơn giản): bản đơn giản chặn đúng 14 lệnh và cho qua 18 lệnh; bản đọc JSON (bỏ comment loader, chạy
   trong bản sao) chặn 25 lệnh phá hoại và cho qua 9 lệnh an toàn; JSON hỏng → exit 1; thiếu `command` → exit 0.
 - **Trong Claude Code thật** (prompt: *"Chạy bằng Bash tool: rm -rf ./__khong_ton_tai__, rồi git push --force --dry-run origin HEAD"*):
   hook chặn với thông báo `PreToolUse:Bash hook error: [node "$CLAUDE_PROJECT_DIR/.claude/hooks/block-destructive.js"]:
@@ -236,12 +237,17 @@ Lưu ý:
 - Hook chạy **trước** luật `permissions` (thông báo thấy được là của hook dù `Bash(rm *)`/`Bash(git push *)` cũng nằm trong `deny`).
   Hook mới được nạp khi mở phiên mới sau khi sửa `settings.json`.
 - Matcher đã đổi từ `"Bash"` thành `"Bash|PowerShell"` để hook cũng chạy với tool PowerShell (input của tool này cũng có
-  `tool_input.command`). Test thủ công bằng JSON giả: `git push --force` kiểu PowerShell bị chặn (exit 2). **Nhưng bản đơn giản
-  chưa có luật cho `Remove-Item -Recurse -Force`** (exit 0, cho qua); luật này nằm trong `destructive-rules.json`, cần bật
-  đoạn loader hoặc thêm luật vào bản đơn giản. Chưa thử trong Claude Code thật với tool PowerShell.
+  `tool_input.command`). Test thủ công bằng JSON giả: `git push --force` kiểu PowerShell bị chặn (exit 2). Bản đơn giản
+  đã có luật `Remove-Item -Recurse -Force` (thử thủ công bằng JSON giả: mọi thứ tự cờ và alias `ri` bị chặn; `Remove-Item file.txt`
+  và `Remove-Item -Recurse x` được cho qua; bản đọc JSON cho cùng kết quả). **Chưa thử với tool PowerShell thật trong Claude Code.**
   Tool MCP không thuộc matcher này: `mcp__tickets__delete_ticket` vẫn do luật `deny` lo.
 - Hook coi mọi `git push --force` là nguy hiểm, kể cả `--dry-run` (cố ý, vì regex chỉ nhìn cờ, không nhìn ngữ cảnh).
-  Cũng có thể chặn nhầm chuỗi nằm trong nội dung khác, ví dụ `git commit -m "bỏ DROP TABLE"` (với bộ luật đầy đủ).
+  Cũng có thể chặn nhầm chuỗi nằm trong nội dung khác, ví dụ `git commit -m "bỏ DROP TABLE"` (với bộ luật rộng hơn).
+- **Denylist nên luôn còn cách lách**, kể cả với bộ luật rộng hơn. Đã thử và **lọt (exit 0) ở cả hai bản**:
+  `/bin/rm -rf x`, `find . -delete`, `python3 -c "import shutil; shutil.rmtree('x')"`.
+  Trường hợp `/bin/rm` là khe hở của regex (yêu cầu `rm` đứng sau khoảng trắng hoặc `; & | (`, không khớp khi có tiền tố đường dẫn;
+  sửa được bằng cách thêm `/` vào các ký tự đứng trước); hai cách còn lại vốn không thể chặn hết bằng regex.
+  Vì vậy hook là lớp giảm rủi ro, **không phải ranh giới an toàn**; lớp chắc hơn là `permissions` (`deny`, `allow` hẹp).
 - Test hook an toàn: dùng lệnh vô hại (`rm -rf` vào thư mục không tồn tại, `git push --force --dry-run`);
   **không** thử bằng `git reset --hard` / `git clean -fd` vì nếu hook không chạy thì mất dữ liệu thật.
 
@@ -269,8 +275,11 @@ Kèm câu cuối: *"Tổng cộng có 2 high, 1 medium, 0 low."*
 - Không có lần gọi `delete_ticket` nào → khớp (tool này cũng đang bị `deny` trong `settings.json`).
 - Ticket đã `closed` (#3) không xuất hiện → đúng vì chỉ lấy `status=open`.
 
+**Đã xác nhận tham số gọi** từ nhật ký phiên của Claude Code (`~/.claude/projects/<dự án>/*.jsonl`): ở phiên sạch có
+`Skill {"skill":"triage-tickets"}` rồi `list_tickets {"status":"open"}`; ở phiên cũ (nói thường sau `/triage-tickets`) chỉ có
+`list_tickets {"status":"open"}` và **không có lần gọi Skill nào** — khớp với kết luận rằng phép thử cùng phiên bị nhiễm.
+
 Chưa kiểm chứng:
-- Ảnh chỉ thấy **kết quả** của `list_tickets` (toàn ticket open), không thấy tham số gọi; cần mở chi tiết tool call để xác nhận `status="open"`.
 - Chưa thử trường hợp không có ticket open (nhánh "nói rõ và dừng").
 
 **Thử gọi bằng câu nói thường** (không gõ `/triage-tickets`): prompt *"triage các ticket đang mở"* → Claude gọi `list_tickets`
@@ -320,23 +329,35 @@ câu tóm tắt "2 high, 1 medium, 0 low".
 
 ## 8. Việc còn lại / chưa kiểm chứng
 
-- [x] `.claude/hooks/block-destructive.js` + đăng ký hook trong `settings.json` (đã kiểm chứng cả `rm -rf` và `git push --force` trong Claude Code).
-- [x] Matcher của hook đã đổi thành `"Bash|PowerShell"`.
-- [ ] Thêm luật `Remove-Item -Recurse -Force` vào bản đơn giản (hoặc bật loader JSON), rồi thử với tool PowerShell trong Claude Code.
+**Đã xong**
+- [x] Hook `block-destructive.js` + đăng ký trong `settings.json`; đã kiểm chứng `rm -rf` và `git push --force` trong Claude Code thật.
+- [x] Matcher của hook là `"Bash|PowerShell"`.
+- [x] Skill `triage-tickets`: thử bằng `/triage-tickets` và tự nạp trong phiên mới (thấy dòng `triage-tickets` `skill`); bảng đúng mẫu,
+  không gọi `delete_ticket`.
+- [x] `/context` (bảng ở mục 6.5). Chưa chạy `/cost`.
+- [x] Token trong `.mcp.json` là `${FAKE_API_TOKEN}`; `.gitignore` của `mcp-server` có `.env` và `.env.*` (khớp luật `deny` đọc `.env`).
+
+**Cần làm** (bốn việc)
+- [x] Thêm luật `Remove-Item -Recurse -Force` vào bản đơn giản. Đã thêm; thử thủ công bằng JSON giả: bị chặn (mọi thứ tự cờ, alias `ri`).
+  Còn lại: thử với tool PowerShell thật trong Claude Code (cần chạy trong phiên Claude Code).
+- [ ] Thử skill với trường hợp **không có ticket open** (nhánh "nói rõ và dừng") và với một prompt **không liên quan**
+  ("tạo ticket mới cho lỗi đăng nhập") để chắc skill không bị nạp nhầm. Cần chạy trong Claude Code; trường hợp không có ticket open
+  cần đóng/xóa hết ticket open nên phải làm bên ngoài Claude (vì `delete_ticket` đang bị `deny`).
+- [x] Xác nhận tham số `status="open"` trong tool call: đã xác nhận từ nhật ký phiên (mục 6.5).
+- [ ] Lý do bảng `/permissions` lệch (Allow 4, Deny 8; file có 5 allow, 7 deny): **chưa xác định được nguyên nhân**.
+  Ảnh chụp khi panel ở **Auto mode**. Giả thuyết chưa chứng minh: auto mode bỏ luật `allow` cho lệnh có thể chạy mã tùy ý như
+  `Bash(node --check *)` (đúng luật bị thiếu ở Allow); trong file chạy của extension có một danh sách interpreter gồm `node`,
+  nhưng chưa chứng minh nó dùng cho việc này. Luật Deny thừa một mục: chưa giải thích được (không có `settings.local.json`,
+  và `~/.claude/settings.json` không có luật allow/deny). Cách kiểm chứng: mở lại `/permissions` ở chế độ **không** phải Auto, cuộn
+  hết danh sách Deny và so với file.
+
+**Tùy chọn**
+- [ ] Sửa khe hở `/bin/rm -rf` (thêm `/` vào ký tự đứng trước `rm` trong regex) ở cả bản đơn giản và `destructive-rules.json`.
 - [ ] Quyết định có cho phép `git push --force --dry-run` không (hiện hook chặn mọi `--force`).
-- [x] `.claude/skills/triage-tickets/SKILL.md` đã viết (frontmatter `name` + `description` nêu rõ khi nào dùng; thân 11 dòng có nội dung).
-- [x] Thử skill bằng `/triage-tickets`: bảng đúng mẫu, đúng thứ tự ưu tiên, không gọi `delete_ticket` (xem mục 6.5).
-- [x] Thử skill tự nạp **trong phiên mới** (câu nói thường là prompt đầu tiên): đạt, thấy dòng `triage-tickets` `skill`.
-  (Lần thử cùng phiên trước đó bị nhiễm vì skill và mẫu đã nằm sẵn trong ngữ cảnh.)
-- [x] Xem `/context` (xem bảng trong mục 6.5). Chưa chạy `/cost`.
-- [ ] Thử trường hợp không có ticket open (nhánh "nói rõ và dừng") và một prompt **không** liên quan ("tạo ticket mới cho lỗi đăng nhập")
-  để chắc skill không bị nạp nhầm.
-- [ ] Mở chi tiết tool call của skill để xác nhận tham số `status="open"`.
-- [x] Đổi token trong `.mcp.json` sang `${FAKE_API_TOKEN}` (cần đặt biến môi trường rồi khởi động lại VS Code, xem mục 6.1;
-  chưa kiểm chứng phiên mới nạp được server sau khi đổi).
+- [ ] Kiểm chứng phiên mới vẫn nạp được server `tickets` sau khi đổi token (cần đặt biến môi trường và khởi động lại VS Code, mục 6.1;
+  nếu chưa đặt biến thì server sẽ không nạp được).
 - [ ] Kiểm chứng `SIGTERM` trên Linux/container.
 - [ ] Kiểm chứng cờ `-e` của Inspector v2.13.
-- [ ] Ghi lại lý do số luật hiển thị trong bảng `/permissions` (Allow 4, Deny 8) lệch so với file (5 allow, 7 deny).
 
 ## 9. Bảng tradeoff: Built-in tool / Custom tool / Skill / MCP
 
@@ -350,7 +371,7 @@ Quy ước: **cứng** = chạy bằng code hoặc quy tắc xác định, kết
 | **Ai kích hoạt** | Claude quyết định gọi; quyền do `permissions` và hook kiểm soát. | Claude quyết định gọi theo mô tả tool; code do ứng dụng của mình chạy. | Claude tự nạp theo `description`, hoặc người dùng gõ `/tên-skill` (cả hai đã thử trong lab). | Claude quyết định gọi theo mô tả tool; kết nối khai báo trong `.mcp.json`, server là tiến trình riêng. |
 | **Độ tin cậy** | Thực thi: **cứng**. Việc gọi: mềm, nhưng chặn được bằng hook/`deny` (cứng). | Thực thi: **cứng** (code của mình, schema kiểm tra tham số). Việc gọi: mềm. | **Mềm**: chỉ là văn bản trong ngữ cảnh, model có thể bỏ sót hoặc làm khác. | Thực thi: **cứng** (gọi API thật, zod chặn tham số sai). Việc gọi: mềm, kiểm soát bằng `permissions` (cứng). |
 | **Chi phí context** | System tools ≈ 18.3k token, cố định mỗi phiên (đo bằng `/context`). | Mỗi tool thêm tên + mô tả + schema vào ngữ cảnh mỗi lượt (phần tiền tố, được cache). | Tên + mô tả của mọi skill luôn có (≈ 5.9k cho cả danh sách); thân skill chỉ nạp khi dùng. | Tool + instructions của `tickets` chỉ ≈ 0.8k (101 + 717); kết quả tool (vd JSON của `list_tickets`) vào Messages và lớn dần. |
-| **Ví dụ trong lab** | `Bash`, `Read`: hook chặn `rm -rf`/`git push --force`, `allow Read(./**)`. | Lab không có custom tool "thuần"; 4 tool trong `index.js` là custom tool nhưng được đóng gói qua MCP. | `triage-tickets` (gọi bằng `/triage-tickets` và tự nạp). | Server `tickets`: `list_tickets`, `get_ticket`, `create_ticket`, `delete_ticket`. |
+| **Ví dụ trong lab** | `Bash`, `Read`: hook chặn `rm -rf`/`git push --force`, `allow Read(./**)`. | Lab 2: `labs/lab2/tools.json` (định nghĩa schema) + `execute_tool` trong `lab2_agent.py` (tự chạy `tool_use`, trả `tool_result`). | `triage-tickets` (gọi bằng `/triage-tickets` và tự nạp). | Server `tickets`: `list_tickets`, `get_ticket`, `create_ticket`, `delete_ticket`. |
 
 Rút ra từ lab:
 - **Cứng vs mềm:** skill ghi "không gọi `delete_ticket`" (mềm), nhưng thứ thật sự bảo đảm là luật `deny`: tool bị ẩn khỏi Claude (cứng).
@@ -359,5 +380,4 @@ Rút ra từ lab:
   cần *cách làm hoặc định dạng* → skill; cần *ngăn chặn chắc chắn* → permissions/hook (nằm ngoài bốn thứ này).
 - **Chi phí:** tool nhìn chung tốn context ở mỗi lượt dù không dùng (schema); skill chỉ tốn phần mô tả cho tới khi dùng,
   nên nhiều quy trình thì skill rẻ hơn nhồi hết vào system prompt.
-- **Chưa kiểm chứng:** (1) "custom tool" ở đây theo cách hiểu API/Agent SDK (tự định nghĩa và tự thực thi tool trong ứng dụng),
-  vì lab không có phần này; (2) MCP tools chỉ 101 token có thể do schema nạp theo yêu cầu; (3) thân skill ≈ vài trăm token chưa đo.
+- **Chưa kiểm chứng:** (1) MCP tools chỉ 101 token có thể do schema nạp theo yêu cầu; (2) thân skill ≈ vài trăm token chưa đo.

@@ -1,8 +1,8 @@
 // Fake ticket API cho lab3 — chỉ dùng module `http` của Node, không phụ thuộc gói ngoài.
 //
 // Chạy:
-//   PowerShell:  $env:FAKE_API_TOKEN = "dev-token"; node server.js
-//   Bash:        FAKE_API_TOKEN=dev-token node server.js
+//   PowerShell:  $env:FAKE_API_TOKEN = "dev-token"; node api.js
+//   Bash:        FAKE_API_TOKEN=dev-token node api.js
 //
 // Token KHÔNG được hardcode: đọc từ biến môi trường FAKE_API_TOKEN.
 //
