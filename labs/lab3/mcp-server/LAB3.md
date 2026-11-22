@@ -369,7 +369,7 @@ Quy ước: **cứng** = chạy bằng code hoặc quy tắc xác định, kết
 |---|---|---|---|---|
 | **Khi nào dùng** | Việc chung: đọc/sửa file, chạy shell, tìm kiếm. Có sẵn, không cần cài. | Cần một hàm riêng của ứng dụng mình (tự định nghĩa schema + tự viết code thực thi), không cần chia sẻ cho client khác. | Quy trình hoặc định dạng đầu ra lặp lại nhiều lần (triage, review...): dạy Claude *cách làm*, không thêm khả năng mới. | Nối Claude với dịch vụ/dữ liệu ngoài qua giao thức chuẩn, dùng lại được ở nhiều client (Claude Code, Inspector...). |
 | **Ai kích hoạt** | Claude quyết định gọi; quyền do `permissions` và hook kiểm soát. | Claude quyết định gọi theo mô tả tool; code do ứng dụng của mình chạy. | Claude tự nạp theo `description`, hoặc người dùng gõ `/tên-skill` (cả hai đã thử trong lab). | Claude quyết định gọi theo mô tả tool; kết nối khai báo trong `.mcp.json`, server là tiến trình riêng. |
-| **Độ tin cậy** | Thực thi: **cứng**. Việc gọi: mềm, nhưng chặn được bằng hook/`deny` (cứng). | Thực thi: **cứng** (code của mình, schema kiểm tra tham số). Việc gọi: mềm. | **Mềm**: chỉ là văn bản trong ngữ cảnh, model có thể bỏ sót hoặc làm khác. | Thực thi: **cứng** (gọi API thật, zod chặn tham số sai). Việc gọi: mềm, kiểm soát bằng `permissions` (cứng). |
+| **Độ tin cậy** | Thực thi: **cứng**. Việc gọi: mềm, nhưng chặn được bằng hook/`deny` (cứng = chắc chắn chạy, không = phủ đủ: hook là denylist nên vẫn có cách lách). | Thực thi: **cứng** (code của mình, schema kiểm tra tham số). Việc gọi: mềm. | **Mềm**: chỉ là văn bản trong ngữ cảnh, model có thể bỏ sót hoặc làm khác. | Thực thi: **cứng** (gọi API thật, zod chặn tham số sai). Việc gọi: mềm, kiểm soát bằng `permissions` (cứng). |
 | **Chi phí context** | System tools ≈ 18.3k token, cố định mỗi phiên (đo bằng `/context`). | Mỗi tool thêm tên + mô tả + schema vào ngữ cảnh mỗi lượt (phần tiền tố, được cache). | Tên + mô tả của mọi skill luôn có (≈ 5.9k cho cả danh sách); thân skill chỉ nạp khi dùng. | Tool + instructions của `tickets` chỉ ≈ 0.8k (101 + 717); kết quả tool (vd JSON của `list_tickets`) vào Messages và lớn dần. |
 | **Ví dụ trong lab** | `Bash`, `Read`: hook chặn `rm -rf`/`git push --force`, `allow Read(./**)`. | Lab 2: `labs/lab2/tools.json` (định nghĩa schema) + `execute_tool` trong `lab2_agent.py` (tự chạy `tool_use`, trả `tool_result`). | `triage-tickets` (gọi bằng `/triage-tickets` và tự nạp). | Server `tickets`: `list_tickets`, `get_ticket`, `create_ticket`, `delete_ticket`. |
 
@@ -377,7 +377,7 @@ Rút ra từ lab:
 - **Cứng vs mềm:** skill ghi "không gọi `delete_ticket`" (mềm), nhưng thứ thật sự bảo đảm là luật `deny`: tool bị ẩn khỏi Claude (cứng).
   Việc bắt buộc phải đúng thì dùng permissions/hook/code, đừng chỉ viết vào skill.
 - **Chọn công cụ:** cần *khả năng mới hoặc dữ liệu ngoài* → tool (MCP nếu muốn chuẩn hóa/chia sẻ, custom tool nếu gắn trong ứng dụng);
-  cần *cách làm hoặc định dạng* → skill; cần *ngăn chặn chắc chắn* → permissions/hook (nằm ngoài bốn thứ này).
+  cần *cách làm hoặc định dạng* → skill; cần *ngăn chặn chắc hơn* → permissions (`deny`, `allow` hẹp); hook bổ sung (cả hai nằm ngoài bốn thứ này).
 - **Chi phí:** tool nhìn chung tốn context ở mỗi lượt dù không dùng (schema); skill chỉ tốn phần mô tả cho tới khi dùng,
   nên nhiều quy trình thì skill rẻ hơn nhồi hết vào system prompt.
 - **Chưa kiểm chứng:** (1) MCP tools chỉ 101 token có thể do schema nạp theo yêu cầu; (2) thân skill ≈ vài trăm token chưa đo.
