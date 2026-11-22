@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "mcp__tickets__list_tickets",
+      "mcp__tickets__get_ticket",
+      "Read(./**)",
+      "Bash(node --check *)",
+      "Bash(npm ls *)"
+    ],
+    "ask": [
+      "mcp__tickets__create_ticket"
+    ],
+    "deny": [
+      "mcp__tickets__delete_ticket",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
+      "Bash(rm *)",
+      "Bash(git push *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Bash|PowerShell",
+      "hooks": [{
+        "type": "command",
+        "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-destructive.js\""
+      }]
+    }]
+  }
+}

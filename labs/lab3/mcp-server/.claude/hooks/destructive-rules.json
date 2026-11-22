@@ -1,0 +1,77 @@
+{
+  "description": "Bộ luật đầy đủ cho block-destructive.js. Mỗi luật: name (tên hiển thị), pattern (chuỗi regex, JSON phải escape \\), flags (cờ regex), reason (lý do báo cho Claude). Chỉ được dùng khi bật đoạn đọc file này trong block-destructive.js.",
+  "rules": [
+    {
+      "name": "rm -rf",
+      "pattern": "(?:^|[;&|(\\s])rm\\b(?=[^;&|\\n]*\\s(?:-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)(?=\\s|$))(?=[^;&|\\n]*\\s(?:-[a-zA-Z]*[f][a-zA-Z]*|--force)(?=\\s|$))",
+      "flags": "i",
+      "reason": "xóa đệ quy không hỏi (rm -rf) có thể mất dữ liệu không khôi phục được"
+    },
+    {
+      "name": "git push --force",
+      "pattern": "\\bgit\\s+push\\b[^;&|\\n]*\\s(?:--force(?:-with-lease)?|-f)(?=\\s|$)",
+      "flags": "i",
+      "reason": "force push ghi đè lịch sử trên remote"
+    },
+    {
+      "name": "git reset --hard",
+      "pattern": "\\bgit\\s+reset\\b[^;&|\\n]*\\s--hard\\b",
+      "flags": "i",
+      "reason": "reset --hard bỏ toàn bộ thay đổi chưa commit"
+    },
+    {
+      "name": "git clean -f",
+      "pattern": "\\bgit\\s+clean\\b[^;&|\\n]*\\s(?:-[a-zA-Z]*[f][a-zA-Z]*|--force)(?=\\s|$)",
+      "flags": "i",
+      "reason": "git clean -f xóa vĩnh viễn các file chưa được theo dõi"
+    },
+    {
+      "name": "SQL DROP",
+      "pattern": "\\bDROP\\s+(?:TABLE|DATABASE|SCHEMA)\\b",
+      "flags": "i",
+      "reason": "DROP xóa cả cấu trúc lẫn dữ liệu"
+    },
+    {
+      "name": "SQL TRUNCATE",
+      "pattern": "\\bTRUNCATE\\s+(?:TABLE\\s+)?\\w",
+      "flags": "i",
+      "reason": "TRUNCATE xóa sạch dữ liệu của bảng"
+    },
+    {
+      "name": "SQL DELETE không có WHERE",
+      "pattern": "\\bDELETE\\s+FROM\\s+[\\w.\"`\\[\\]]+\\s*(?:;|$|[\"'])",
+      "flags": "i",
+      "reason": "DELETE FROM không có WHERE sẽ xóa toàn bộ bản ghi"
+    },
+    {
+      "name": "Remove-Item -Recurse -Force",
+      "pattern": "\\b(?:Remove-Item|ri|rm|del|erase|rd|rmdir)\\b(?=[^;&|\\n]*\\s-Recurse\\b)(?=[^;&|\\n]*\\s-Force\\b)",
+      "flags": "i",
+      "reason": "Remove-Item -Recurse -Force xóa đệ quy không hỏi"
+    },
+    {
+      "name": "rd/rmdir /s /q",
+      "pattern": "\\b(?:rd|rmdir)\\b(?=[^;&|\\n]*\\s\\/s\\b)(?=[^;&|\\n]*\\s\\/q\\b)",
+      "flags": "i",
+      "reason": "rd /s /q xóa cả cây thư mục không hỏi"
+    },
+    {
+      "name": "del /s /q",
+      "pattern": "\\b(?:del|erase)\\b(?=[^;&|\\n]*\\s\\/s\\b)(?=[^;&|\\n]*\\s\\/q\\b)",
+      "flags": "i",
+      "reason": "del /s /q xóa hàng loạt file không hỏi"
+    },
+    {
+      "name": "format ổ đĩa",
+      "pattern": "(?:^|[;&|\\s])format(?:\\.com)?\\s+[a-z]:",
+      "flags": "i",
+      "reason": "format xóa sạch ổ đĩa"
+    },
+    {
+      "name": "mkfs / dd ghi vào thiết bị",
+      "pattern": "\\bmkfs(?:\\.\\w+)?\\b|\\bdd\\b[^;&|\\n]*\\sof=\\/dev\\/",
+      "flags": "i",
+      "reason": "ghi trực tiếp lên thiết bị lưu trữ"
+    }
+  ]
+}

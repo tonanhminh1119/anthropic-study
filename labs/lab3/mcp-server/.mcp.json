@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "tickets": {
+            "command": "node",
+            "args": ["index.js"],
+            "env": {
+                "FAKE_API_TOKEN": "${FAKE_API_TOKEN}"
+            }
+        }
+    }
+}
