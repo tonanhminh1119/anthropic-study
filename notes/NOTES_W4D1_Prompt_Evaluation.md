@@ -121,7 +121,7 @@ Lab 2 có `jsonschema.validate` và sửa tối đa một lần. Đó là **ki�
 
 **1. Tại sao "đã thử 5 input và đều ổn" vẫn là Option 2?**
 - Các input do chính dev chọn nên thiên về happy case và những ca dev đã nghĩ tới; edge case thật là ca dev chưa nghĩ tới.
-- **[ngoài tài liệu]** 5 lần đạt không cho ra một con số. Nếu prompt hỏng 10% số lần thì xác suất 5 lần đều qua là 0.9⁵ ≈ 59%. Với 5/5 đạt chỉ có thể nói tỉ lệ lỗi thực tế không vượt quá khoảng 45% (mức tin cậy 95%).
+- **[ngoài tài liệu]** 5 lần đạt không cho ra một con số. Nếu prompt hỏng 10% số lần thì xác suất 5 lần đều qua là 0.9⁵ ≈ 59%. Với 5/5 đạt chỉ có thể nói tỉ lệ lỗi thực tế không vượt quá khoảng 45% (**cận trên một phía**, mức tin cậy 95%). Nếu dùng khoảng tin cậy hai phía 95% thì cận trên là khoảng 52%.
 
 **2. Engineering và evaluation khác nhau ở câu hỏi nào?**
 - Engineering: viết thế nào cho tốt hơn. Evaluation: có thật sự tốt hơn không, tốt hơn bao nhiêu, và có làm hỏng thứ đang chạy tốt không (regression).
@@ -134,7 +134,7 @@ Lab 2 có `jsonschema.validate` và sửa tối đa một lần. Đó là **ki�
 **4. Vì sao chạy nhiều lần cho cùng một input? (Lab 2)**
 - Để phân biệt **ổn định** với **may mắn**, vì model không tất định.
 - Kịch bản A: cùng yêu cầu, hai lần chạy cho 3 vòng, 3282 token và 4 vòng, 4662 token (kết quả cuối giống nhau, chi phí lệch khoảng 40%).
-- Kịch bản D (ví dụ mạnh hơn): cùng `max_rounds=2`, nhưng nếu model đi đường dài thì vòng lặp cắt trước khi xoá và trạng thái cuối khác hẳn. Chạy một lần có thể tưởng an toàn chỉ vì may.
+- Kịch bản D (ví dụ về hậu quả của dao động): **thực tế quan sát được** (LAB2.md) là `delete_message` chạy ở vòng cuối được phép (vòng 2), rồi vòng lặp dừng, model không có lượt báo lại, và tin đã bị xoá thật; cả hai lần chạy D đều như vậy. **Biến thể chưa quan sát [ngoài tài liệu]:** nếu model đi đường dài (như lần chạy lại của kịch bản A: tìm, lọc, xoá) thì giới hạn 2 vòng có thể cắt trước khi xoá và trạng thái cuối khác hẳn. LAB2.md cũng ghi biến thể này như một suy luận, chưa tái hiện được. Ý chính vẫn đúng: một lần chạy có thể gây hiểu nhầm về hành vi của cấu hình.
 - Báo cáo bằng **tỉ lệ đạt trên n lần chạy** (ví dụ 18/20), không phải đúng hay sai một lần.
 
 **5. Ai viết prompt, ai đưa input, eval chạy ở pha nào?**
@@ -244,6 +244,6 @@ Slide nói dataset có thể do Claude sinh. Nhanh và đủ số lượng, như
 
 - Mới có khung 5 bước (mục 8), chưa có code. Các bài sau sẽ dựng workflow bằng code: cần xem cách tạo dataset (liên quan mục 7 câu 6: nguồn tập test, ai gắn nhãn), cách chạy hàng loạt, cách viết grader bằng model và barem.
 - Các điểm ở mục 8.2 và 8.3 về thiên vị độ dài, chấm nhiều lần, đối chiếu với điểm của người là kiến thức ngoài tài liệu, cần đối chiếu khi học phần grader.
-- Các con số ở mục 7 câu 1 (59%, khoảng 45%) là tính nhanh của mình, chưa tự chạy lại bằng code.
+- Các con số ở mục 7 câu 1 (0.9⁵ ≈ 59%, cận trên một phía khoảng 45%, hai phía khoảng 52% cho 0 lỗi trên 5 lần) đã tính lại bằng Python ngày 2026-11-23: 0.590, 0.451, 0.522.
 - Kiểm tra docs: công cụ cải thiện prompt của Anthropic Console (mục 6.3) có hiện hành và hoạt động thế nào.
 - Chưa làm: thêm test khó hơn và nhiều lần lặp hơn cho `bench_models.py` để điểm không còn 1.00 cho mọi model.
