@@ -93,7 +93,9 @@ def generate_dataset():
     return json.loads(text)                         # text đã sạch, parse được luôn
 ```
 
-Vì sao hai thứ đi cùng nhau: prefill làm model **bắt đầu thẳng vào JSON** (không có lời dẫn), stop sequence làm nó **dừng trước dấu đóng ```** (không có lời kết). Phần còn lại chỉ là JSON, `json.loads` được ngay.
+> **Lưu ý (đã thử thật):** đoạn code prefill này **chỉ là minh hoạ theo khóa học**, không chạy được trên `claude-haiku-5-5` (400, xem mục 7 điểm 2). Khi làm Lab 4 dùng phương án thay thế: chỉ dẫn "chỉ trả JSON" trong prompt, structured output, hoặc cắt khối ``` bằng code rồi `json.loads` kèm validate. Hiểu kỹ thuật để trả lời theo khóa học, nhưng nhớ nó đã bị gỡ trên model mới.
+
+Vì sao hai thứ đi cùng nhau (theo khóa học): prefill làm model **bắt đầu thẳng vào JSON** (không có lời dẫn), stop sequence làm nó **dừng trước dấu đóng ```** (không có lời kết). Phần còn lại chỉ là JSON, `json.loads` được ngay.
 
 Lưu file để dùng lại:
 
@@ -129,8 +131,8 @@ Prompt **không** yêu cầu: đa dạng giữa ba loại, độ khó khác nhau
 
 ## 7. Những chỗ cần cẩn thận khi dùng code của bài **[ngoài tài liệu]**
 
-1. **`temperature` có thể gây lỗi 400.** Hàm `chat` luôn gửi `temperature`. Notes cũ (`MSO Foundations`, `Production-Grade Prompting`) ghi các model Claude mới nhất không nhận tham số sampling khác mặc định và trả 400. Với `claude-haiku-5-5` cần bỏ tham số này (chỉ thêm khi không phải `None`), hoặc kiểm tra bằng một lần gọi thật trước khi tin.
-2. **Prefill có thể không còn được hỗ trợ** trên model mới. Đây là thứ mình **chưa kiểm chứng** với model đang dùng; cần thử một lần gọi hoặc đối chiếu docs. Nếu không dùng được thì thay bằng: yêu cầu trong prompt "chỉ trả JSON", dùng structured output, hoặc cắt khối ```json bằng code rồi `json.loads`.
+1. **`temperature` gây lỗi 400 trên `claude-haiku-5-5`. Đã thử thật (2026-11-24).** Hàm `chat` luôn gửi `temperature` nên hỏng ngay lần gọi đầu. Kết quả thử bằng [probe_model_params.py](../demos/probe_model_params.py): `temperature=1.0` và `temperature=0.5` đều trả `400 invalid_request_error: "temperature: Extra inputs are not permitted"`, tức API từ chối tham số này **ở mọi giá trị, kể cả giá trị mặc định** (khớp với nguồn bạn cung cấp về API version mới; còn bản ghi "chỉ lỗi khi khác mặc định" là của model đời trước). SDK `anthropic` 2.6.0 còn **không có** tham số `temperature` trong `Messages.create()` (gửi trực tiếp thì `TypeError`; phải đi qua `extra_body` mới chạm được API). Cách đúng: **bỏ hẳn tham số**, điều khiển hành vi qua prompt.
+2. **Prefill bị từ chối trên `claude-haiku-5-5`. Đã thử thật.** Request kết thúc bằng message `assistant` trả `400: "This model does not support assistant message prefill. The conversation must end with a user message."` Nguồn bạn cung cấp (docs migration) cũng ghi nhiều model đời mới không hỗ trợ prefill và khuyên dùng structured outputs, chỉ dẫn trong system prompt hoặc `output_config.format`; mình **chưa tự đối chiếu trang gốc**, nhưng kết quả thử trực tiếp đã khớp. Hướng thay thế: yêu cầu trong prompt "chỉ trả JSON, không giải thích", dùng structured output, hoặc cắt khối ```json bằng code rồi `json.loads` kèm validate và thử lại (như Lab 2). Stop sequence riêng lẻ (không kèm prefill) **chưa thử**.
 3. **Prompt mẫu có dấu phẩy thừa** (`"task": "Description of task",` rồi `},`). Chỗ mẫu đó không phải JSON hợp lệ (trailing comma ở object). Model thường vẫn trả JSON đúng, nhưng ví dụ trong prompt nên chính xác.
 4. **`json.loads` có thể fail.** Hai nguyên nhân thường gặp: model bỏ qua prefill/thêm chữ; output bị cắt do `max_tokens=1000` khi sinh nhiều object (kiểm tra `response.stop_reason == "max_tokens"`). Cần validate và thử lại, đúng tinh thần Lab 2.
 5. **Sinh 3 object không đủ cho eval thật**, đây chỉ là demo (slide ghi "...many more..."). Dataset thật cần hàng chục tới hàng trăm ca.
@@ -229,7 +231,7 @@ Tài liệu **không có**:
 3. **Vòng lặp tuần tự, một ca một lần gọi.** Với dataset hàng trăm ca thì chậm; hướng giảm: gọi song song hoặc Batch API (NOTES.md mục 1). Nếu dùng Batch thì thứ tự kết quả không bảo đảm, phải ghép theo `custom_id`; vòng lặp tuần tự thì thứ tự giữ nguyên nên chưa cần.
 4. **Không có xử lý lỗi.** Một ca bị lỗi API (429, 529, hết thời gian) thì cả `run_eval` dừng, mất kết quả các ca trước. SDK có retry (NOTES.md mục 1), nhưng khi dataset lớn nên bắt lỗi theo từng ca và ghi nhận ca đó fail.
 5. **Mỗi ca chạy một lần.** Chưa phản ánh dao động giữa các lần chạy (W4D1 mục 7 câu 4). Muốn có tỉ lệ đạt cần chạy mỗi ca nhiều lần.
-6. **`chat` vẫn gửi `temperature` mặc định 1.0.** Nếu model mới trả 400 với tham số này thì pipeline lỗi ngay ca đầu (xem mục 7 điểm 1).
+6. **`chat` luôn gửi `temperature` (mặc định 1.0), nên pipeline lỗi ngay ca đầu trên `claude-haiku-5-5`.** Đã thử thật: API trả 400 cho tham số này kể cả ở giá trị mặc định (mục 7 điểm 1). Sửa: chỉ thêm `temperature` vào `params` khi khác `None`, và đừng truyền gì.
 7. **`max_tokens` = 1000 trong `chat`** có thể cắt cụt câu trả lời dài (ví dụ prompt chưa có chỉ dẫn ngắn gọn, output rất dài). Kết quả bị cắt có thể làm grader chấm sai; nên để ý `stop_reason`.
 
 ## 14. Nối với những gì đã làm trong repo **[ngoài tài liệu]**
@@ -300,7 +302,7 @@ Cấu trúc prompt của grader:
 1. **Vai:** "expert code reviewer".
 2. **Dữ liệu cần chấm:** `Task` (đề bài từ test case) và `Solution` (output của prompt đang eval). Grader nhìn **cả đề lẫn bài làm**, giống slide "Feed Through a Grader".
 3. **Định dạng trả về:** JSON với bốn trường.
-4. **Ép JSON sạch:** prefill "```json" + stop sequence "```", rồi `json.loads`, cùng kỹ thuật của `generate_dataset()` ở mục 5.
+4. **Ép JSON sạch:** prefill "```json" + stop sequence "```", rồi `json.loads`, cùng kỹ thuật của `generate_dataset()` ở mục 5. **Không chạy được trên `claude-haiku-5-5`** (prefill bị 400, mục 7 điểm 2); minh hoạ theo khóa học, Lab 4 dùng phương án thay thế.
 
 Gắn vào pipeline (thay chỗ `score = 10` ở mục 9):
 
@@ -352,7 +354,7 @@ Bản ghi kết quả giờ có bốn trường: `output`, `test_case`, `score`,
 2. **Không có barem** nên điểm dao động và dễ thiên vị (ví dụ mến câu dài, W4D1 mục 8.3). Cách giảm: viết barem, chấm nhiều lần lấy trung bình, đối chiếu điểm của người với vài mẫu.
 3. **Grader chưa biết các tiêu chí Format và Syntax đã được code chấm**. Nếu output có lời giải thích thừa, grader bằng model có thể phạt hoặc không phạt tuỳ ý. Nên nói rõ trong prompt grader tiêu chí nào nó phải chấm (Task Following) để không chấm chồng.
 4. **Model tự chấm bài của mình:** nếu `chat` dùng chung một `model` cho cả prompt đang eval và grader thì model chấm bài của chính nó. Có thể thiên vị bài của mình; nên cân nhắc dùng model khác hoặc mạnh hơn làm grader.
-5. **`chat` vẫn gửi `temperature=1.0`** nên điểm dao động theo mỗi lần gọi (và có thể bị 400 ở model mới, xem mục 7 điểm 1). Vì model mới không cho chỉnh sampling, cách giảm dao động còn lại là chấm nhiều lần và lấy trung bình.
+5. **`chat` luôn gửi `temperature`**, mà API từ chối tham số này trên `claude-haiku-5-5` (400, đã thử thật, mục 7 điểm 1), nên grader cũng lỗi ngay. Model mới không cho chỉnh sampling nên cách giảm dao động còn lại là chấm nhiều lần và lấy trung bình.
 6. **Parse có thể lỗi.** `json.loads` fail nếu grader thêm chữ hoặc bị cắt; `score` có thể là chuỗi hoặc ngoài 1–10. Cần validate (như Lab 2) và thử lại.
 7. **Điểm trung bình che chi tiết.** Cần xem điểm từng ca và đọc `reasoning` của các ca thấp, đừng chỉ nhìn một số.
 8. **Giữ cả `strengths` và `weaknesses`** trong kết quả sẽ có thêm dữ liệu để rà lỗi; hiện bị bỏ.
@@ -437,6 +439,8 @@ add_assistant_message(messages, "```code")
 output = chat(messages, stop_sequences=["```"])
 ```
 
+> **Lưu ý:** prefill bị 400 trên `claude-haiku-5-5` (mục 7 điểm 2). Đoạn này chỉ để hiểu kỹ thuật của khóa học; Lab 4 dùng phương án thay thế (chỉ dẫn trong prompt, structured output, hoặc cắt khối ``` bằng code).
+
 Prefill "```code" mở một khối code **không nêu ngôn ngữ**, nên không cần biết trước là Python, JSON hay Regex; stop sequence cắt trước dấu đóng. Kết quả là chỉ còn code, không lời dẫn, không dấu ```.
 
 **Chọn validator theo `format`:**
@@ -486,7 +490,7 @@ Trọng số bằng nhau cho chất lượng nội dung và độ đúng kỹ th
 5. **Trung bình hai điểm che mất lỗi.** Điểm cú pháp 0 mà model chấm 9 cho ra 4.5, trông như "tạm được", dù output không dùng được. Hai cách: lưu hai điểm riêng trong kết quả (không chỉ điểm gộp), hoặc **gác cổng**: cú pháp sai thì cho 0 luôn và **bỏ qua lần gọi model grader**, đỡ tốn tiền (grader lai, W4D1 mục 8.2).
 6. **Hai điểm 0 hoặc 10 trộn với thang 1–10 của model.** Chỉ hợp lệ vì cùng thang; nhưng cú pháp là nhị phân còn điểm model là thang liên tục nên trọng số bằng nhau chưa chắc phản ánh mức quan trọng.
 7. **Làm hai thứ một lúc.** "Làm rõ prompt" gồm hai thay đổi (chỉ dẫn "chỉ trả code" và prefill). Nếu áp cả hai vào v2 thì không biết thứ nào có tác dụng (W4D1 mục 8.4: mỗi lần chỉ đổi một thứ). Nên đưa vào từng cái một.
-8. **Prefill vẫn là điểm chưa kiểm chứng** với model hiện tại (mục 7 điểm 2); "```code" và `grade_by_model` đều dựa vào nó.
+8. **Prefill không chạy được trên `claude-haiku-5-5`** (400, đã thử thật, mục 7 điểm 2); "```code" và `grade_by_model` đều dựa vào nó nên phải đổi sang phương án thay thế trước khi chạy.
 9. **Bắt ngoại lệ hẹp.** Mỗi hàm chỉ bắt một loại lỗi. Đầu vào lạ (ví dụ chuỗi có ký tự null với `ast.parse`, hoặc regex quá phức tạp) có thể ném lỗi khác và làm cả `run_eval` dừng. Nên bắt rộng hơn rồi trả 0.
 10. **Baseline không nói "tốt hay xấu" là đúng**, nhưng khi so v1 với v2 vẫn cần chạy nhiều lần và xem điểm từng ca để biết chênh lệch có thật hay chỉ là dao động (W4D1 mục 9 câu 2).
 
@@ -545,10 +549,21 @@ dataset (task + format)  ->  run_prompt  ->  output
 
 ## 30. Còn lại và việc cần kiểm tra
 
-- Thân hàm `generate_dataset()` trong bài thiếu; bản ở mục 5 là mình tái dựng, chưa chạy. Code của bài Running the eval cũng chưa chạy; các điểm ở mục 13 là suy luận.
-- Kiểm tra bằng một lần gọi thật với `claude-haiku-5-5`: (a) `temperature` có bị 400 không; (b) prefill `"```json"` còn được chấp nhận không; (c) stop sequence hoạt động ra sao.
+- Thân hàm `generate_dataset()` trong bài thiếu; bản ở mục 5 là mình tái dựng và **không chạy được** trên model hiện tại (prefill). Code của bài Running the eval chưa chạy tiếp; các điểm ở mục 13 là suy luận, trừ điểm 6 (đã thử thật).
+- **Kết quả thử thật với `claude-haiku-5-5` (2026-11-24, script [probe_model_params.py](../demos/probe_model_params.py)):**
+
+  | Thử | Kết quả |
+  |---|---|
+  | Gọi bình thường | OK, trả `{"a":1}` |
+  | `temperature=1.0` (qua `extra_body`) | **400** `temperature: Extra inputs are not permitted` |
+  | `temperature=0.5` (qua `extra_body`) | **400**, cùng thông báo |
+  | Prefill `"```json"` + `stop_sequences=["```"]` | **400** `This model does not support assistant message prefill. The conversation must end with a user message.` |
+
+  Ghi chú: SDK 2.6.0 không có tham số `temperature`, nên phải gửi qua `extra_body`. Mình chưa thử stop sequence riêng lẻ (không kèm prefill) và chưa đối chiếu trực tiếp trang docs gốc; các nguồn về Opus/Sonnet đời trước là do bạn cung cấp.
+- **Việc cần làm cho Lab 4:** sửa `chat` (bỏ `temperature`), thay prefill bằng chỉ dẫn "chỉ trả JSON" + cắt khối ``` bằng code + `json.loads` kèm validate và thử lại, hoặc structured output.
+- Ôn thi: nhớ cả hai ý: kỹ thuật prefill + stop sequences là gì (theo khóa học) **và** nó đã bị gỡ trên model mới. Đề hỏi theo khóa học thì chọn kỹ thuật; hỏi theo model hiện hành thì chọn phương án thay thế.
 - Tài liệu chưa nói cách **lưu kết quả ra file** và **so giữa các phiên bản**; xem các bài sau (grader, tối ưu) có bổ sung không.
-- Code của bài Model based grading cũng chưa chạy. Cần thử: grader có trả JSON đúng với prefill không, và claim "model hay mặc định chấm khoảng 6 nếu không có lý do" có đúng với model đang dùng không.
-- Code của bài Code based grading cũng chưa chạy. Cần thử: `validate_regex` với output có lời dẫn (mục 27 điểm 1), và prefill "```code" với model hiện tại.
+- Code của bài Model based grading cũng chưa chạy (và dùng prefill nên phải sửa trước, xem trên). Cần thử sau khi sửa: grader có trả JSON đúng không, và claim "model hay mặc định chấm khoảng 6 nếu không có lý do" có đúng với model đang dùng không.
+- Code của bài Code based grading cũng chưa chạy. Cần thử: `validate_regex` với output có lời dẫn (mục 27 điểm 1; đã tự kiểm bằng `re.compile` ở mức cú pháp). Prefill "```code" thì đã biết không dùng được (mục 7 điểm 2).
 - Bốn bài của module đã có đủ tài liệu. Bài sau (nếu có) chắc là chạy eval thật, sửa prompt v2 và so điểm; bổ sung tại đây, đặc biệt cách lưu kết quả và so giữa các phiên bản (mục 12).
 - Chưa làm: thêm test khó hơn cho `bench_models.py` (từ W4D1).

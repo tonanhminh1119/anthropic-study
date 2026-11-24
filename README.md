@@ -32,6 +32,7 @@ python demos/demo.py image duong_dan_anh.jpg   # thí nghiệm ảnh, cần truy
 python demos/demo_batch.py     # Message Batches API
 python demos/bench_realtime.py # đo độ trễ và chi phí 20 request realtime
 python demos/bench_models.py   # benchmark 4 model (tốn tiền thật, vài cent)
+python demos/probe_model_params.py   # thử tham số temperature và prefill với Haiku (4 request nhỏ)
 python labs/lab2/lab2_agent.py # Lab 2, xem labs/lab2/LAB2.md
 ```
 
@@ -43,6 +44,7 @@ python labs/lab2/lab2_agent.py # Lab 2, xem labs/lab2/LAB2.md
 | `demos/demo_batch.py` | Gửi 20 request cùng lúc bằng Message Batches API, poll đến khi xong rồi in kết quả. Xử lý bất đồng bộ nên rẻ hơn nhưng chậm hơn. |
 | `demos/bench_realtime.py` | Gửi 20 request tuần tự giống batch, đo độ trễ và chi phí để so với `demo_batch.py`. |
 | `demos/bench_models.py` | Chạy 3 prompt trên 4 model, đo latency, cost và chấm quality tự động (kết quả trong `notes/NOTES.md`). |
+| `demos/probe_model_params.py` | Thử `claude-haiku-5-5` với `temperature` và prefill + stop sequences; cả hai bị 400 (kết quả trong `notes/NOTES_W4D2_Eval_Dataset_Running.md` mục 30). |
 
 Thí nghiệm `caching` dùng văn bản dài trong `archive/Building with the Claude API.txt`. Thư mục `archive/` chỉ để lưu tài liệu tham khảo.
 
