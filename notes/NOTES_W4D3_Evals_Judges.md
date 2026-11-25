@@ -112,7 +112,7 @@ Khung này **trùng với W4D2 mục 9**; `grade` ở đây chỉ là tên gọi
 
 Grader biến output thành tín hiệu, thường là số từ 1 đến 10. Bài nói **chọn sai cách chấm là chỗ phí công nhất** của eval.
 
-### 4.1 Bảng chọn grader (bảng trong ảnh bạn gửi)
+### 4.1 Bảng chọn grader (bảng trong bài)
 
 > "Of the three methods listed below, the judge is the only one you must build and tune, so it gets its own treatment here."
 
@@ -251,6 +251,12 @@ agreement(human, judge, tol=1)     # 0.75   lệch không quá 1 điểm, 6/8
 hp = [h >= 7 for h in human]; jp = [j >= 7 for j in judge]
 agreement(hp, jp)                  # 0.875  đạt/không đạt, 7/8
 ```
+
+**Ví dụ Cohen's kappa cho ca nhị phân ở trên** (độ đồng thuận sau khi trừ phần may rủi):
+- Độ đồng thuận quan sát được: p_o = 0.875.
+- Độ đồng thuận do may rủi: người chấm 4/8 ca "đạt" (0.5), judge chấm 3/8 ca "đạt" (0.375), nên p_e = 0.5 × 0.375 + 0.5 × 0.625 = 0.5.
+- κ = (p_o − p_e) / (1 − p_e) = (0.875 − 0.5) / (1 − 0.5) = **0.75**.
+- Chỉ có 8 ca nên con số này vẫn rất không ổn định (mục 11 điểm 1): đổi kết quả một ca là κ nhảy mạnh.
 
 Ba điều rút ra từ ví dụ trên:
 - **Cùng một dữ liệu, ba con số khác nhau** (0.375, 0.75, 0.875) tùy bạn định nghĩa "đồng ý" thế nào. Phải chốt định nghĩa trước khi nói "judge đồng ý 80%".
@@ -399,7 +405,7 @@ Ba chỗ analogy lệch:
 2. **Người chấm cũng là một model và cần được kiểm.** Với output mở không có kết quả mong đợi cụ thể để so, nên cần judge. Judge giống QC junior mà bạn phải đối chiếu với nhãn của QC senior (hiệu chuẩn, mục 7). Unit test không có khâu này.
 3. **Đổi model hoặc prompt là đổi "thứ được test".** Model nâng phiên bản có thể làm hành vi đổi mà không ai sửa dòng nào, nên eval phải chạy lại mỗi khi đổi bất cứ thứ gì, kể cả model.
 
-**c) Ba cách chấm so với ba loại test của một hệ thống SSO** (ánh xạ do bạn đề xuất, mình chỉnh thêm)
+**c) Ba cách chấm so với ba loại test của một hệ thống SSO** (ánh xạ do mình đề xuất, có chỉnh thêm khi đối chiếu với bài)
 
 | Cách chấm | Loại test tương ứng | Ví dụ SSO | Chỗ cần chỉnh |
 |---|---|---|---|
