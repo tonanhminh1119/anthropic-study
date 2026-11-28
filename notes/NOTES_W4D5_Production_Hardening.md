@@ -232,6 +232,39 @@ Mỗi bên đúng khi đứng riêng. Retrieval trả list các dict, bộ dựn
 6. **Cách viết assert "không trả lời từ trí nhớ":** dùng tài liệu mà model không thể biết (chính sách tưởng tượng, mã số riêng). Câu trả lời đúng chỉ có thể đến từ chunk. Nếu dùng tài liệu có trong kiến thức chung thì model trả lời đúng dù context hỏng, và case sẽ không bị bắt.
 7. Đây là bẫy 1 của bảng mục 8 ("chỉ có eval hoặc chỉ có test từng mảnh") thành ví dụ cụ thể.
 
+### 8.2 Checkpoint của bài Testing and tracing **[docs]** và đối chiếu **[ngoài tài liệu]**
+
+**Đề.** Đọc trace nơi E2E fail còn mọi unit test pass; chỉ ra **chỗ vỡ**, nêu **cơ chế**, chọn **cách sửa trúng đích** và **mức test** sẽ bắt được, trong ba phương án.
+
+```
+PASS test_retrieve_unit        returns 3 chunks for a known query
+PASS test_model_call_functional returns a well-formed answer string
+FAIL test_full_flow_e2e
+  step 1 retrieve(q)        ok   -> [{"content": "..."}, ...]
+  step 2 build_prompt(chunks) ok -> chunks placed without .content
+  step 3 model.call(prompt) ok   -> answer unrelated to the documents
+  step 4 assert "30 days"   FAIL -> phrase not in answer
+```
+
+| Phương án | Nội dung | Kết quả |
+|---|---|---|
+| A | Sửa parser (`dateutil.parse`, đã qua unit test của nó) | Sai |
+| B | Sửa câu chữ prompt ("Answer carefully and cite the policy") | Sai: "rewords, ignores the seam" |
+| **C** | **Căn lại mối nối cộng thêm integration test** trên `retrieve()` đến `build_prompt()`: `context = "\n".join(c["content"] for c in chunks)`, rồi `build_prompt(question, context)`, test mới chạy hai hàm cùng nhau trên chunk thật | **Đúng** |
+
+**Câu trả lời đầy đủ (mình chọn C):**
+- **Chỗ vỡ:** mối nối giữa bước 1 và bước 2, tức `retrieve()` đến `build_prompt()`.
+- **Cơ chế:** **lệch hợp đồng định dạng ở chỗ giao**. `retrieve()` trả list các dict chunk; `build_prompt()` không bao giờ đọc trường `content`, nên model nhận context sai dạng và trả lời không dựa vào tài liệu.
+- **Cách sửa:** trích `content` thành chuỗi, cộng test trên đúng mối nối đó.
+- **Mức test:** **integration**.
+
+**Đối chiếu [ngoài tài liệu]:**
+1. **Cùng kiểu với case Watch Out ở mục 8.1**, khác ở chỗ checkpoint hỏi cả chuỗi: tìm chỗ vỡ, gọi tên cơ chế, chọn sửa, chọn mức test. Thứ tự đọc trace: tìm **bước đầu tiên có output sai**; ở đây là output của bước 2 ("chunks placed without .content"), không phải bước 4 là nơi assert rơi.
+2. **Vì sao A sai:** trace **không có parser nào**, và dòng "đã qua unit test" là manh mối ngược: unit test xanh nghĩa là lỗi **không nằm trong đơn vị đó** (mục 3: unit "không bắt được cách các thành phần khớp nhau"). **Vì sao B sai:** nếu context không tới được model thì không câu chữ nào làm nó "cite the policy", vì nó chưa từng nhận chính sách. Đổi prompt khi chưa đọc trace là cách sửa sai tầng (quy tắc mục 6, hàng 1).
+3. **`assert "30 days"` là một assertion tốt**: cụm đó chỉ có trong tài liệu đã truy xuất, nên đúng thì chứng tỏ context đã tới model (mục 8.1 điểm 6: dùng tài liệu model không thể biết). Nó là thứ phân biệt "trả lời từ context" với "trả lời từ trí nhớ".
+4. **Chỗ cách sửa C còn có thể làm tốt hơn:** C đặt việc trích `content` ở **bên gọi**, rồi `build_prompt(question, context)` nhận chuỗi. Mọi nơi khác gọi `build_prompt` phải lặp lại bước trích. Giữ **hợp đồng ở một nơi**: hoặc `build_prompt` nhận `list[Chunk]` rồi tự ghép, hoặc kiểm kiểu tại biên (mục 8.1 điểm 4). Bài không nói; đây là gợi ý của mình.
+5. **Integration test mới không cần model thật** (mục 4.5 điểm 4): chạy `retrieve` trên chunk thật rồi `build_prompt`, khẳng định prompt cuối **chứa văn bản chunk** và **không chứa** dạng `{'content'`. Bắt đúng lỗi, rẻ, chạy mỗi commit; model thật chỉ cần cho câu "model có dùng context không".
+
 ## 9. Ghi trước phần đã biết cho hai chủ đề sau **[ngoài tài liệu]**
 
 Chưa có tài liệu, nên chỉ ghi dữ kiện đã có trong notes cũ, để khi bài tới thì đối chiếu:
@@ -638,6 +671,101 @@ for item in batch:
 4. **Vì sao dev không thấy lỗi lúc phát triển:** đây là lý do cụ thể cho điều "đường lỗi cũng cần test" (mục 20 điểm 8). Nếu không chủ động **tiêm lỗi** (server giả trả 429 vài lần rồi 200), "chưa từng thấy lỗi" sẽ thành "chưa từng viết xử lý". Failure injection biến lỗi hiếm thành thứ thấy mỗi lần chạy test.
 5. **Lab 2 đang ở đúng trạng thái "shipped version" của case này, ở tầng API.** Mục 19.1 đã ghi Lab 2 không có `try` quanh `client.messages.create`; có `max_retries=3` của SDK, hết lượt thì traceback. Tầng tool thì xử lý rất kỹ, tầng API thì chưa.
 
+### 21.3 Checkpoint của bài Failure Handling **[docs]** và đối chiếu **[ngoài tài liệu]**
+
+**Đề.** Khối mã có **một lỗi**; nêu lỗi và viết bản đã sửa.
+
+```python
+def call_with_retry(make_call, max_attempts=5):
+    for attempt in range(max_attempts):
+        try:
+            return make_call()
+        except Exception:
+            time.sleep(0)
+    raise RetryBudgetExhausted()
+```
+
+Mình chưa xem đáp án mẫu của khóa nên phần dưới là đối chiếu với bài, chưa phải với đáp án chính thức.
+
+**Mình trả lời gì, và đối chiếu:**
+
+| Câu trả lời của mình | Nhận xét |
+|---|---|
+| (1) Bắt mọi lỗi, **không phân loại** retriable hay terminal, cứ retry đến hết ngân sách | **Đúng, là lỗi cốt lõi** của bài (mục 15). Thiếu phần cách lấy `status` từ exception và chỗ cắm `is_retriable` vào vòng lặp |
+| Đoạn `is_retriable(status)` | Đúng, nhưng hàm nhận **số status**, còn `except Exception` cho ra **exception**. Cần `status_code` của exception, và quy tắc cho lỗi **không có status** (timeout, mạng, bug) |
+| (2) Trả `{"type": "tool_result", ..., "is_error": True}` trong `except` | **Sai tầng**, xem dưới |
+| "Chờ đến hết ngân sách rồi tự ném, lúc đó Claude không làm được gì" | Đúng một nửa, xem dưới |
+
+**Lỗi mình bỏ sót, và là lỗi dễ thấy nhất: `time.sleep(0)`.** Vòng lặp **không chờ gì**: không backoff, không jitter, không đọc `retry-after`. Đây đúng là "retry ngay trong vòng chặt" của case ở mục 21.2: mỗi lần thử tức thì là thêm một request vào cùng hạn mức, làm nó sâu hơn. Vậy "một lỗi" của đề có hai mặt: **retry mù (không phân loại)** và **retry không chờ**. Mặt thứ ba nhỏ hơn: `raise RetryBudgetExhausted()` **trống**, mất lỗi gốc (che lỗi thật, mục 15).
+
+**Vì sao (2) sai tầng.** Đoạn `is_error: True` là của **tool runner** (mục 17): tool chạy lỗi thì báo cho Claude biết. Còn `call_with_retry` bọc **một lệnh gọi** (thường là gọi API). Đặt `return {... "is_error": True}` trong `except` sẽ:
+- **Kết thúc vòng lặp ngay ở lần lỗi đầu tiên** (vì `return`), biến mọi lỗi retriable thành terminal, tức **phá chức năng retry**; và `tool_use` không tồn tại trong hàm này.
+- Nếu `make_call` là chính lệnh gọi Claude (`messages.create`) thì **không có Claude nào để trả lỗi về**: lỗi API không đi qua `tool_result`.
+
+Phân tầng đúng: **tầng retry** thử lại lỗi retriable, hết thì **ném lỗi mô tả rõ** (kèm lỗi gốc); **tầng tool runner ở trên** bắt lỗi đó và chuyển thành `is_error: True` cho Claude. Về câu "Claude không còn làm được gì": chỉ đúng khi **không ai bắt** ngoại lệ (traceback, như Lab 2 ở mục 19.1). Nếu tool runner chuyển thành `is_error` thì Claude **vẫn làm được**: giải thích cho người dùng, thử cách khác, hoặc dừng.
+
+**Bản sửa [đã chạy thử với lỗi giả và với các lớp exception thật của SDK 2.6.0]:**
+
+```python
+import time, random, anthropic
+
+RETRIABLE = {429, 529, 500, 502, 503, 504}
+
+class RetryBudgetExhausted(Exception): pass
+
+def is_retriable(exc):
+    status = getattr(exc, "status_code", None)
+    if status is not None:
+        return status in RETRIABLE                     # lỗi có status: theo bảng
+    # timeout và lỗi mạng của SDK; mọi thứ khác (kể cả bug) là terminal
+    return isinstance(exc, (anthropic.APIConnectionError, TimeoutError, ConnectionError))
+
+def retry_after(exc):                                  # thời gian chờ có thẩm quyền, nếu server gửi
+    headers = getattr(getattr(exc, "response", None), "headers", None) or {}
+    try:
+        return float(headers.get("retry-after"))
+    except (TypeError, ValueError):
+        return None
+
+def backoff(attempt):                                  # 0,5s x 2^n, trần 8s, jitter 75 đến 100%
+    return min(8.0, 0.5 * 2 ** attempt) * (1 - 0.25 * random.random())
+
+def call_with_retry(make_call, max_attempts=5):
+    last_exc = None
+    for attempt in range(max_attempts):
+        try:
+            return make_call()
+        except Exception as exc:
+            if not is_retriable(exc):
+                raise                                  # terminal: ném ngay, giữ nguyên lỗi thật
+            last_exc = exc
+            if attempt == max_attempts - 1:
+                break                                  # hết lượt: không ngủ thừa
+            time.sleep(retry_after(exc) or backoff(attempt))
+    raise RetryBudgetExhausted(f"gave up after {max_attempts} attempts") from last_exc
+```
+
+**Kết quả chạy thử (lỗi giả, `time.sleep` được thay để ghi thời gian chờ):**
+
+| Tình huống | Kết quả |
+|---|---|
+| 429, 429, rồi OK | Trả OK, chờ 0,46s rồi 0,91s |
+| 429 kèm `retry-after: 3`, rồi OK | Chờ **đúng 3,0s** (theo header, không theo backoff) |
+| 400 | Ném `FakeHTTPError` **ngay**, không chờ lần nào |
+| `KeyError` (bug) | Ném **ngay**, không retry |
+| 500 liên tục 5 lần | `RetryBudgetExhausted` kèm `__cause__` là lỗi 500; chờ 4 lần (0,43; 0,86; 1,61; 3,38s), **không ngủ sau lần thứ 5** |
+| `TimeoutError`, rồi OK | Retry, chờ 0,48s |
+
+Và trên các lớp thật của SDK 2.6.0 (`is_retriable`): `RateLimitError` 429 và `InternalServerError` 500 là retriable; `BadRequestError` 400 và `AuthenticationError` 401 là terminal; `APITimeoutError` và `APIConnectionError` là retriable; `KeyError` là terminal. Header `retry-after` đọc được qua `exc.response.headers`.
+
+**Một phát hiện từ lúc kiểm:** bản đầu mình viết chỉ có `isinstance(exc, (TimeoutError, ConnectionError))` cho lỗi không có status. Kiểm với SDK thì thấy `APITimeoutError` là con của `APIConnectionError` và **không kế thừa `TimeoutError` của Python**, nên bản đầu sẽ xếp timeout thật của SDK vào **terminal**. Đã thêm `anthropic.APIConnectionError`. Đây là cái bẫy mà chỉ chạy với exception thật mới lộ.
+
+**Còn lại, bản sửa vẫn chưa làm [ngoài tài liệu]:**
+1. **Chồng với retry của SDK (mục 16).** Nếu `make_call` gọi qua client SDK mặc định (`max_retries=2`), mỗi lần thử là tối đa 3 request, 5 lần thử là tối đa **15 request**. Chọn một nơi retry: hạ `max_retries` của SDK xuống, hoặc bỏ vòng này.
+2. **Idempotency** nếu `make_call` là thao tác ghi (mục 20 điểm 1), và **deadline tổng** để `retry-after` lớn không treo yêu cầu (mục 20 điểm 7).
+3. **Ghi mỗi lần retry vào trace** (mục 20 điểm 9) để phân biệt "chậm do retry" với "chậm do model".
+4. Hàm `retry_after` chỉ đọc dạng **số giây**; header cũng có thể ở dạng ngày HTTP (SDK xử lý cả hai, mục 16).
+
 ## 22. Nối với notes cũ **[ngoài tài liệu]**
 
 | Ý của bài | Nối với |
@@ -783,6 +911,26 @@ Mẫu phổ biến: **model mặc định có ghi đè**. Đa số lưu lượng
 3. **Bước phân loại là một prompt, nên cũng cần eval.** Và mỗi đường model là một cặp (prompt, model) cần **eval riêng** làm cổng chặn: "đường model thứ hai phải bảo trì" nghĩa là gấp đôi bộ test và eval.
 4. **Router cũng là chỗ đặt fallback giữa các model khi lỗi** (Failure Handling: 529 kéo dài thì chuyển đường dự phòng). Model dự phòng cũng phải đã qua eval, không được chọn tạm lúc sự cố.
 5. **Tín hiệu rẻ phải thực sự rẻ và dự đoán được độ khó.** Độ dài input là tín hiệu rẻ nhất nhưng chưa chắc phản ánh độ khó (câu ngắn vẫn có thể khó).
+
+### 29.1 Checkpoint của bài Model Selection **[docs]** và đối chiếu **[ngoài tài liệu]**
+
+**Đề.** Mỗi tình huống: chọn bậc model (Opus, Sonnet, Haiku) và nêu **một ràng buộc quyết định**, tức thứ duy nhất làm đáp án đổi. Ảnh gửi dừng ở tình huống 3 (màn 12 trên 23); nếu còn tình huống sau thì gửi bù.
+
+| Tình huống | Đáp án của khóa | Ràng buộc quyết định | Vì sao phương án sai sai |
+|---|---|---|---|
+| 1. Phân loại khối lượng lớn, hàng triệu tin ngắn mỗi ngày; eval cho thấy **Haiku giữ chuẩn** | **Haiku** | **Chi phí ở khối lượng lớn**, vì eval đã xác nhận ngưỡng chất lượng còn giữ, nên trả cho model lớn hơn **không mua thêm gì** | Opus "độ sâu suy luận" và "nhất quán": mua thứ eval đã cho thấy không cần; Sonnet "cân bằng": trả thêm mà không được thêm |
+| 2. Agent nhiều bước lập kế hoạch refactor **phụ thuộc nhau**, sai bước đầu rất đắt; eval cho thấy **Sonnet trượt ở ca khó nhất** | **Opus** | **Chất lượng ở suy luận khó, nơi chi phí của câu sai cao**, và eval cho thấy cần nâng bậc | Sonnet "hiệu quả chi phí" hoặc "độ trễ" và Haiku "tốc độ": tối ưu một trục không phải ràng buộc quyết định |
+| 3. Lưu lượng hỗn hợp: đa số tra cứu đơn giản, ít tổng hợp phức tạp | **Route**: Sonnet (hoặc Haiku) mặc định cộng **Opus ghi đè** cho yêu cầu phức tạp | **Lưu lượng hỗn hợp**: một model duy nhất hoặc trả thừa ở việc đơn giản, hoặc yếu ở việc phức tạp | Opus cho tất cả (trả thừa), Haiku cho tất cả (yếu ở phức tạp), Sonnet cho tất cả (một model cho mọi nhu cầu) |
+
+**Cách đọc.** Mỗi đáp án có đủ hai vế: *chọn gì* và *vì ràng buộc nào*. Phương án sai thường **đúng về một trục** (nhanh, rẻ, mạnh) nhưng không phải ràng buộc đang quyết định. Dụng cụ ra quyết định luôn là **eval**: giữ chuẩn thì hạ, trượt thì nâng, lưu lượng không đồng đều thì tách. Đúng quy trình mục 28 và mẫu routing mục 29.
+
+**Đối chiếu [ngoài tài liệu]:**
+1. **Tình huống 1 và 2 là hai chiều của cùng một phép đo.** Cùng nguyên tắc "model rẻ nhất đạt chuẩn đo bằng eval": ca dễ kéo xuống, ca khó đẩy lên. Không đáp án nào dựa vào "mạnh nhất cho chắc" (bẫy 1 mục 31).
+2. **"Opus vì nhất quán" ở tình huống 1 là bẫy tinh tế.** Nhất quán là thứ **đo** bằng eval chạy lặp, không phải thứ mua bằng bậc model. (Trên `claude-haiku-5-5` còn không đặt được `temperature`, W4D2 mục 7, nên không thể trông vào việc ép tất định.)
+3. **Tình huống 2 dùng chi phí của lỗi (mục 27.1).** Việc phụ thuộc nên lỗi bước đầu kéo theo các bước sau, giống phép nhân xác suất ở mục 40.2 điểm 8 (0,99^6 ≈ 94,1% theo giả định độc lập). Và vì việc **gắn chặt**, đáp án là **một agent Opus**, không phải orchestrator: nối với checkpoint Cost ở mục 44.2.
+4. **Tình huống 3 viết "Sonnet (hoặc Haiku)" mà không chọn.** Cách chọn là eval trên **nhóm tra cứu đơn giản**: nếu Haiku giữ chuẩn thì Haiku làm mặc định (như tình huống 1). Đáp án cũng không nói điều kiện để router có lời (mục 29 điểm 1: tiết kiệm phải lớn hơn chi phí phân loại cộng chi phí nhầm, cần tỉ lệ lưu lượng thật), và nếu gần như **mọi** yêu cầu đơn giản thì nên ghim một model, bỏ router.
+5. **Hai kiểu phân loại nhầm của router** vẫn áp dụng (mục 29 điểm 2): yêu cầu phức tạp bị đưa sang model nhỏ cho chất lượng tụt âm thầm, yêu cầu đơn giản bị đưa sang Opus chỉ tốn tiền.
+6. **Kết quả này xác nhận nửa "tiêu chí chọn model" của câu hỏi 6** (mục 30): tiêu chí là đủ. Nửa "đổi model làm vỡ gì ngoài chất lượng" vẫn do mục 30 trả lời, checkpoint không đụng tới.
 
 ## 30. Trả lời câu hỏi hướng dẫn 6
 
@@ -1095,6 +1243,32 @@ Thang chọn của LAB2 mục 7: một lần gọi, workflow, agent, nhiều age
 5. **Cổng eval của mục 42 điều 3** ("orchestrator tốt hơn một agent có ngân sách token ngang?") bắt được case này: chất lượng "barely better" nghĩa là rớt cổng và hệ số nhân không được biện minh.
 6. **Chi tiết đáng nhớ: "giữ nguyên context".** Bản sửa không bỏ thông tin nào, chỉ bỏ **sự nhân bản context**. Nếu mỗi subagent nạp lại cùng một phần context chung thì trả nhiều lần. Prompt caching giảm được phần này (mục 38), nhưng cache gắn theo model nên lead và subagent khác model thì không dùng chung (mục 45).
 
+### 44.2 Checkpoint của bài Cost & Orchestration **[docs]** và đối chiếu **[ngoài tài liệu]**
+
+**Đề.** Bốn cấu hình, mỗi cấu hình ghi kiểu agent và đòn bẩy chi phí chính; ghép với bốn tình huống. Kết quả của mình: **đúng cả bốn**.
+
+| Cấu hình | Kiểu agent, đòn bẩy |
+|---|---|
+| A `orchestrator_worker(lead=LARGE, workers=SMALL, n=5)` | Rẽ nhánh song song |
+| B `single_agent(model=SMALL, batch=True, cache=True)` | Message Batches API (khoảng 50% giảm chi phí) cộng prompt caching |
+| C `single_agent(model=SMALL, retrieval="fetch_once")` | Chọn model |
+| D `single_agent(model=SMALL, stream=True)` | Streaming |
+
+| Tình huống | Đáp án | Vì sao |
+|---|---|---|
+| 1. Tra cứu một sự kiện trong kho tham chiếu ổn định | **C** | Fetch-once với model nhỏ nhất dùng được. Chọn A là trả hệ số nhân fan-out cho một tra cứu đơn (mục 40, 42) |
+| 2. Câu hỏi nghiên cứu rộng, chia được thành phần độc lập, khám phá cùng lúc | **A** | Là việc duy nhất chia độc lập, nên hệ số nhân mua được khám phá song song |
+| 3. Yêu cầu người dùng đang chờ, câu trả lời phải có cảm giác tức thì | **D** | Streaming cho cảm giác nhanh |
+| 4. Việc nhạy chi phí, không gấp, theo lô | **B** | Batch cộng cache. Chọn đường đồng bộ là bỏ mức giảm khoảng 50% của Batches |
+
+**Đối chiếu [ngoài tài liệu]:**
+1. **Đây là bảng đòn bẩy (mục 37) và danh sách "khi nào song song" (mục 42) thành bài tập:** mỗi tình huống ứng với một đòn bẩy có tên; "xác định đòn bẩy trước khi chỉnh". Cả bốn đáp án khớp mục 36 đến 42.
+2. **Con số "khoảng 50%" là dữ kiện mới.** Mục 39 ghi bài **không nêu số** và NOTES.md mới chỉ là số tính. Checkpoint ghi "~50% cost reduction" cho Batches: có thêm một nguồn từ khóa, nhưng ở dạng xấp xỉ, **chưa đối chiếu trang giá chính thức** (mục 47).
+3. **Streaming không giảm hoá đơn.** Cùng số token; nó đổi **cảm giác độ trễ** (thời gian tới token đầu), không đổi tổng thời gian hay chi phí. Nếu có tool use thì vẫn phải **chờ stream đóng** trước khi hành động (mục 37).
+4. **Bài tập đơn giản hoá thành một-một, thực tế đòn bẩy cộng gộp.** B đã cộng hai đòn bẩy (batch và cache); C có thể thêm cache; A có thể stream câu trả lời cuối. "Đòn bẩy chính" không có nghĩa là duy nhất.
+5. **Cấu hình ghi `model=SMALL` cho cả bốn, `LARGE` chỉ ở lead của A.** Là chỗ giữ chỗ để khớp tình huống, không thay quy trình mục 28 (bắt đầu từ mặc định rồi nâng hạ theo eval). Cấu hình A cũng chính là kịch bản C và D ở mục 40.1 (lead mạnh, subagent rẻ), vẫn phải qua eval.
+6. **Đáp án A của tình huống 2 phụ thuộc vào câu "chia được thành phần độc lập" mà đề đã cho sẵn.** Ngoài đời điều kiện đó phải tự kiểm trước (mục 44.1 điểm 2); đó đúng là chỗ case Watch Out ở trên vỡ.
+
 ## 45. Nối với notes cũ **[ngoài tài liệu]**
 
 | Ý của bài | Nối với |
@@ -1126,7 +1300,7 @@ Thang chọn của LAB2 mục 7: một lần gọi, workflow, agent, nhiều age
 ## 47. Còn lại và việc cần kiểm tra (Phần D, cũng là phần cuối của cả ngày)
 
 - **Chưa chạy thật cho cả Phần D.** Các con số ở mục 40.1 (hỗn hợp 80/20, chia đều 30 nghìn token mỗi context) là giả định minh hoạ; 0,99^6 cũng là giả định độc lập. Hai chỗ đã đọc mã SDK: có `get_final_message()` cho streaming và `usage` có hai trường cache; chưa thử chạy.
-- **Chưa đối chiếu:** nguồn gốc con số "15 lần" và mối quan hệ với "4 lần chat" (mục 40.2 điểm 1); mức giảm giá của Batches API (vẫn là số tính trong NOTES.md); hạn mức tốc độ khi chạy song song; hiệu quả cộng gộp batch với cache.
+- **Chưa đối chiếu:** nguồn gốc con số "15 lần" và mối quan hệ với "4 lần chat" (mục 40.2 điểm 1); mức giảm giá của Batches API (checkpoint ở mục 44.2 ghi "khoảng 50%" nhưng chưa đối chiếu trang giá; NOTES.md vẫn là số tính); hạn mức tốc độ khi chạy song song; hiệu quả cộng gộp batch với cache.
 - **Bản dán thiếu** nội dung của hai tab "Prompt & context size" và "Number of tool calls"; nếu có bản đầy đủ thì bổ sung mục 37.
 - **Nếu làm Lab 4:** viết một wrapper đo đầy đủ (ghi cả lỗi, hai trường cache, `run_id`, `agent_id`, model); thêm bản ghi thời gian vào `lab2_agent.py`; chạy `bench_models.py` có thêm đo `cache_read_input_tokens`; viết thử một orchestrator nhỏ (lead cộng 2 subagent) và so chi phí, độ trễ, điểm eval với một agent.
 - **Ba việc còn treo từ các phần trước:** lưu kết quả eval để so phiên bản (W4D2 mục 12; Phần A mục 5.2), tái hiện 429 và 529 bằng server giả (Phần B mục 20 điểm 8), sửa câu chữ quy tắc "rẻ nhất" trong NOTES.md mục 2 (Phần C mục 28.1).

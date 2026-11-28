@@ -182,6 +182,49 @@ XSS còn cho hai song song hay: **stored XSS** là injection gián tiếp (cài 
 
 **Hook và pod [ngoài tài liệu, chỉ là ví dụ tương đương].** Trong Kubernetes, thứ giống sandbox là cấu hình của pod: volume chỉ mount một thư mục, root filesystem chỉ đọc, NetworkPolicy chỉ cho ra vài endpoint. Hook giống một **middleware trong chính ứng dụng** kiểm từng request. Chưa kiểm sandbox của Claude Code được dựng bằng cơ chế nào ở mức hệ điều hành; bài chỉ nói OS-level.
 
+### 8.2 Checkpoint: cấu hình tối thiểu cho agent fetch-and-write **[docs]** và đối chiếu câu trả lời của mình **[ngoài tài liệu]**
+
+**Đề.** Agent fetch nội dung web không tin cậy, ghi vào **một** đường dẫn được bảo vệ, chạy dưới danh tính đã giới hạn. Lắp cấu hình tối thiểu: viết **bốn kiểm soát** phải có, mỗi cái **một câu** nói nó **cưỡng chế** điều gì, và **bỏ những thứ không thuộc** cấu hình này. Bốn mảnh đề cho: hook `PreToolUse` (chặn ghi ngoài `/workspace/output`), deny rule (`/etc`, `/secrets`, `~/.aws`), tham chiếu secret (`os.environ["SERVICE_API_KEY"]`), dòng audit log (`log_audit(action, path, result)`).
+
+**Câu trả lời mẫu, mỗi mảnh một câu về điều được cưỡng chế:**
+
+| Mảnh | Một câu | Lớp (mục 8.1) |
+|---|---|---|
+| Hook `PreToolUse` | Từ chối **trước khi tool chạy** mọi lệnh ghi có đích ngoài thư mục cho phép, nên ranh giới được cưỡng chế **bất kể prompt hay nội dung fetch nói gì** | 4 |
+| Deny rule | Danh sách cấm tường minh **luôn thắng allow** (deny > ask > allow), nên danh tính của agent không với tới thư mục hệ thống và secret **kể cả khi allow rule hoặc hook sai** | 3 |
+| Tham chiếu secret | Secret lấy từ môi trường lúc chạy, **không nằm trong cấu hình được commit**, nên không vào lịch sử repo và **xoay được mà không sửa mã** | 3 |
+| Audit log | Mỗi **hành động đặc quyền**, được phép hay bị chặn, để lại bản ghi (hành động, đích, kết quả, **danh tính**) mà người rà soát **xem được** | 4, 6 |
+
+**Đáp án của khóa [docs]** (gửi sau khi mình làm xong):
+
+| Mảnh | Đáp án của khóa |
+|---|---|
+| 1. Hook `PreToolUse` | Chạy trước khi `write_file` thực thi, chặn mọi lệnh ghi ngoài `/workspace/output` **và ghi log lần thử**. Cưỡng chế xảy ra trước khi tool chạy: là **guardrail, không phải convention** |
+| 2. Deny rule | Cấm tường minh `/etc`, `/secrets`, `~/.aws`. **Giới hạn bán kính hư hại** nếu agent bị lái bởi prompt injection |
+| 3. Tham chiếu biến môi trường | Lấy key từ `os.environ` thay vì cấu hình được commit. Credential commit thẳng vào mã vào lịch sử repo và **không xoay được sạch sẽ** |
+| 4. Audit log | Ghi **mọi hành động đặc quyền** kèm kết quả. Là chuỗi bằng chứng một cuộc rà soát có quy định cần, và làm cho việc cưỡng chế **nhìn thấy được** |
+
+Kết luận của khóa: **cả bốn mảnh đều thuộc**, không mảnh nào bị loại. Lệnh ghi bị cài vào đi đến **hook và audit log, không đến đĩa**.
+
+**Đối chiếu với câu trả lời của mình:** các mảnh khớp. Hai chỗ đáp án xác nhận điều mình đã sửa: (a) audit log là "mọi hành động **đặc quyền**", không phải "mọi action"; (b) không có mảnh nào thừa. Hai điều mình thêm **không có trong đáp án** (mình suy ra, giữ ở dạng [ngoài tài liệu]): deny rule còn chặn **lệnh đọc** mà hook không thấy, và bản ghi cần **danh tính** (chữ này có ở thân bài ở mục 5, không có trong đáp án checkpoint). Đáp án cũng cho thấy hook **tự ghi log** lần thử bị chặn, nên hai mảnh 1 và 4 nối nhau: hook tạo sự kiện, audit log là nơi lưu.
+
+**Nhận xét câu trả lời đầu của mình:**
+1. **Cả bốn mảnh đúng nội dung, nhưng đề hỏi "cưỡng chế điều gì", còn mình mô tả "làm gì".** Công thức một câu: *[cơ chế] cưỡng chế [ranh giới] bất kể [điều gì xảy ra ở lớp trên]*. Ví dụ mảnh 3: "dùng biến môi trường" chỉ là cơ chế; điều được cưỡng chế là **secret không nằm trong repo và xoay được**.
+2. **Hook: `/workspace/output` là đường dẫn tuyệt đối.** Dấu `/` đầu tiên nghĩa là gốc của cây thư mục trên Linux (Windows tương đương: `C:\workspace\output`). Đường dẫn tương đối mới là `workspace/output` hay `./output`, phụ thuộc thư mục hiện hành, và vì mơ hồ như vậy nên hook mới nên so với đường dẫn tuyệt đối. **Nghi ngờ của mình đúng ở chỗ khác:** `startswith` trên **chuỗi chưa chuẩn hoá** chưa an toàn (mục 5 điểm 2): `/workspace/output-evil/x` khớp, `/workspace/output/../../etc/x` qua nếu chưa bỏ `..`, và symlink có thể trỏ ra ngoài. Cách làm đúng là **resolve rồi so theo thành phần đường dẫn**:
+
+```python
+from pathlib import Path
+ALLOWED = Path("/workspace/output").resolve()
+def is_allowed(p): return Path(p).resolve().is_relative_to(ALLOWED)
+```
+
+   (Giống .NET: `Path.GetFullPath` rồi so có dấu phân cách cuối. Đoạn Python chưa chạy; `is_relative_to` cần Python 3.9 trở lên.) Hook này cũng chỉ phủ tool `write_file`, không phủ `echo > file` qua shell (mục 5 điểm 3).
+3. **Deny rule: thêm "vì sao cần khi đã có hook".** Hook chỉ kiểm lệnh **ghi**. Deny rule chặn cả lệnh **đọc** `/secrets` và `~/.aws`. Nếu thiếu, agent bị lái có thể **đọc secret trước rồi ghi vào `/workspace/output`** (đích được phép), và hook không thấy gì sai. Hai mảnh bổ sung nhau, không trùng. Lưu ý: `~` cần được bộ cưỡng chế **mở rộng** thành thư mục home; chưa kiểm cú pháp thật của Claude Code.
+4. **Audit log: "mọi action" nên là "mọi hành động đặc quyền"**, đúng chữ của bài. Và chữ ký `log_audit(action, path, result)` của đề **thiếu danh tính**, trong khi bài nói bản ghi cần "danh tính đã thực hiện". Thêm thời điểm và `run_id` để nối với trace. Không ghi **giá trị** secret vào log. Nhớ log `PreToolUse` là ý định, không phải kết quả (mục 5 điểm 5).
+5. **Nên ghi cả hành động bị chặn**, không chỉ hành động được phép: dòng `BLOCKED` là bằng chứng ranh giới đang hoạt động và là tín hiệu có kẻ đang cố lái agent (mục 10.1 điểm 5).
+
+**"Bỏ những gì không thuộc":** bài chỉ đưa bốn mảnh nên không mảnh nào thừa (đáp án khóa xác nhận: cả bốn đều thuộc). Điều cần tránh là **thêm** những thứ trông giống kiểm soát nhưng không phải: (a) dòng trong prompt "không bao giờ ghi ra ngoài" (không phải kiểm soát, xem khung *Use a different approach* ở mục 8); (b) dấu phân cách quanh nội dung fetch coi như rào chắn (ranh giới mềm); (c) việc đặt cấu hình dưới dạng secret nhúng cứng cho tiện. **Sandbox** (mục 7) là lớp bổ sung có giá trị khi hook và deny không phủ tới, nhưng **không thuộc bốn mảnh này**; thêm khi chi phí cho phép. ZDR, residency, managed config thuộc **scoping** (mục 6), không phải một dòng cấu hình của agent.
+
 ## 9. Nối với W4D5 Phần A đến D **[ngoài tài liệu]**
 
 | Chủ đề | Nối thế nào |

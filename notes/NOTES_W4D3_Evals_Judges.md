@@ -306,6 +306,41 @@ Bài khẳng định: một tập eval **lớn hơn với chấm tự động h�
 5. **Mở rộng danh sách loại ca biên** ở mục 8 điểm 2: thêm "**nhiều giá trị cùng loại** trong một input", "**thiếu giá trị**" và "**giá trị tương đối**". Hai loại sau bài đã nêu; loại đầu là nguyên nhân sự cố.
 6. **Nhãn của ca do model sinh phải do người kiểm**: bài và mục 8 lưu ý 1 cùng nói vậy; case này nhấn: đầu ra mong đợi của ca hai ngày là quyết định của người, không phải của model.
 
+### 8.2 Checkpoint của bài Evals & Judges **[docs]** và đối chiếu **[ngoài tài liệu]**
+
+**Đề.** Một eval cho tính năng tóm tắt có hai chỗ trống. **Dataset:** nêu đầu ra cụ thể mỗi ca input phải cho. **Judge prompt:** ghép mỗi dải điểm với ý nghĩa của nó. Kết quả của mình: **đúng cả**.
+
+```json
+[
+  {"input": "Long support thread about a delayed refund, 14 messages.",
+   "expected_behavior": "A 2-sentence summary naming the issue (delayed refund) and the current status (escalated)."},
+  {"input": "Meeting transcript where three action items are assigned.", "expected_behavior": ""},
+  {"input": "Bug report with repro steps and one unrelated aside.", "expected_behavior": ""}
+]
+```
+
+Judge prompt: "You are grading a summary against its expected behavior. Summary: {output}. Expected behavior: {expected_behavior}. Return JSON with strengths, weaknesses, reasoning, score. Score scale: 1 to 3, 4 to 7, 8 to 10."
+
+| Chỗ trống | Đáp án |
+|---|---|
+| Ca họp, ba việc được giao | "A summary that lists **all three action items with their owners**" |
+| Ca bug report | "A summary of the bug and its repro steps that **omits the unrelated aside**" |
+| Dải 1 đến 3 | "**Misses required content**" |
+| Dải 4 đến 7 | "**Partial**: some required content present, some missing" |
+| Dải 8 đến 10 | "**Complete and faithful** to the expected behavior" |
+
+Lời của khóa: **hành vi mong đợi cụ thể** cộng **thang điểm có neo** là thứ làm điểm **so sánh được giữa các lần chạy** và **bênh vực được khi rà soát**.
+
+**Đối chiếu với notes cũ [ngoài tài liệu]:**
+1. **"Expected behavior" khác "expected output".** Tóm tắt không có một chuỗi đúng duy nhất, nên ghi **hành vi** (những gì phải có, phải bỏ, hình dạng) thay vì chuỗi mẫu rồi để judge so (mục 4.1, bảng chọn grader). Đối lập với postmortem mục 8.1: trích một ngày thì có đáp án chuẩn, nên **code grader so bằng** là đủ. Cùng một bộ eval, chọn grader theo hình dạng output.
+2. **Mỗi hành vi mong đợi tốt có ba phần kiểm được:** nội dung phải có (nêu vấn đề, trạng thái), **thứ phải bỏ** (ca bug: "unrelated aside"), và hình dạng (ca 1: "2-sentence"). Ca bug cố ý cài một **ràng buộc loại trừ** để thử model có biết bỏ phần thừa.
+3. **Chỗ thang điểm của bài chưa phủ.** Ba dải định nghĩa theo **nội dung bắt buộc bị thiếu**. Một bản tóm tắt ca bug **đủ mọi bước tái hiện nhưng vẫn chen cả đoạn lạc đề** vi phạm hành vi mong đợi, mà không khớp dải nào: không "thiếu nội dung" (dải 1 đến 3) và cũng không "thiếu một phần" (dải 4 đến 7). Nên thêm vào định nghĩa dải 4 đến 7 chữ "**hoặc chứa nội dung lẽ ra phải bỏ**", hoặc nêu rõ cách xử lý chi tiết bịa thêm. Đây là nhận xét của mình; bài không nói.
+4. **Độ rộng dải không đều** (3, 4, 3 giá trị) là bình thường vì mục tiêu là **neo ý nghĩa**, không phải chia đều. Điều cần là mỗi dải có **một định nghĩa phân biệt được**; ba dải ở đây làm được.
+5. **Thứ tự `strengths`, `weaknesses`, `reasoning`, `score`:** điểm đến **sau** lập luận, đúng điều mục 6 ghi (lập luận trước neo điểm); khẳng định "trôi về khoảng 6 nếu thiếu lập luận" vẫn chưa kiểm (mục 11 điểm 3).
+6. **Hai chỗ bài chưa nói và mục 7 bù:** thang có neo mới chỉ làm **judge hiểu đề**; chưa chứng tỏ judge **chấm giống người**. Vẫn cần hiệu chuẩn (mục 7) trên các ca có nhãn người, đặc biệt ca có ràng buộc loại trừ như ca bug. Sau khi hiệu chuẩn thì **đóng băng** judge (mục 11 điểm 7) để điểm so được giữa các lần chạy, đúng câu cuối của khóa.
+7. **Ca 1 có phần kiểm bằng code được** ("2-sentence"): đếm câu trước, rồi judge chấm nội dung; khớp ý **gác cổng** ở mục 11 điểm 8. Các ca 2, 3 chỉ cần judge.
+8. **Ba ca là bài tập, không đủ độ phủ.** Mục 8 nhấn eval thật cần nhiều ca và đa dạng; nhãn do **người** viết, nhất là ca khó.
+
 ## 9. Vòng lặp cải tiến
 
 ```
