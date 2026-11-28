@@ -13,7 +13,7 @@ Bảy câu hỏi của module, đánh giá theo tài liệu đã có. Cập nh�
 | 1 | Bốn mức test kiểm gì, ví dụ từ Lab 2 hoặc Lab 3 | Bài định nghĩa đủ bốn mức; ví dụ Lab là phần mình ánh xạ | **Đủ** (mục 3, 4) |
 | 2 | Trace ghi gì, phân biệt lỗi model với lỗi integration thế nào | Ghi gì: đủ. Cách phân biệt: bài chỉ cho ví dụ, **không nêu quy tắc** | **Đủ một nửa** (mục 5, 6) |
 | 3 | Hồi quy là gì, đổi prompt hoặc model thì mức test nào bắt đầu tiên | Bài **không định nghĩa hồi quy** và không nói mức nào bắt đầu tiên | **Thiếu**; mục 7 là suy luận từ notes cũ |
-| 4 | Các bài "Watch Out" cảnh báo bẫy nào | Mục Watch Out của khóa là một **case "Why this broke"** cuối bài (xác nhận của bạn). Bản dán đầu chỉ có ba khung "Handles well / Adds cost / Use a different approach"; case gửi bù sau cho **ba trong bốn** bài | **Đủ ba phần tư**: Testing (mục 8.1), Failure Handling (mục 21.2), Cost & Orchestration (mục 44.1); **Model Selection chưa có** (mục 31). Bảng bẫy ngầm ở mục 8, 21, 31, 44 là phần mình suy ra thêm, đứng cạnh case |
+| 4 | Các bài "Watch Out" cảnh báo bẫy nào | Mục Watch Out của khóa là một **case "Why this broke"** cuối bài (xác nhận của bạn). Bản dán đầu chỉ có ba khung "Handles well / Adds cost / Use a different approach"; case gửi bù sau cho **ba trong bốn** bài | **Đủ**, trừ một ngoại lệ do **cấu trúc khóa**: Testing (mục 8.1), Failure Handling (mục 21.2), Cost & Orchestration (mục 44.1) có Watch Out. **Model Selection không có Watch Out riêng**: trong khóa, Failure Handling và Model Selection là một module chung, mục lục chỉ có Watch Out một lần, đặt sau Teaching của Failure Handling (mục 31). Bảng bẫy ngầm ở mục 8, 21, 31, 44 là phần mình suy ra thêm, đứng cạnh case |
 | 5 | Retriable và terminal, người dùng nhận gì | Nhóm lỗi: đủ. Người dùng nhận gì: bài chỉ nói "caller" nhận gì, **không nêu thông báo cho người dùng cuối** | **Đủ một nửa** (Phần B, mục 19) |
 | 6 | Tiêu chí chọn model; haiku từ chối `temperature`/prefill nói gì | Tiêu chí: đủ. Đổi model làm vỡ gì ngoài chất lượng: bài **không nói**, và còn nói "đổi model không cần viết lại ứng dụng", trái với kết quả thử ở W4D2 | **Đủ một nửa** (Phần C, mục 30) |
 | 7 | Đo cost, latency, độ tin cậy khi nhiều agent; khi nào chạy song song; đối chiếu trần ngân sách W4D3 mục 2.2 | Khi nào song song: đủ. Đo: có ba chỉ số mỗi lần gọi và bảng so sánh, **thiếu cách gộp theo từng agent và theo request**. Đối chiếu với trần ngân sách: bài không làm, phần này là của mình | **Đủ phần lớn** (Phần D, mục 41 đến 43) |
@@ -1019,7 +1019,7 @@ Cả hai đều là **tham số hoặc tính năng của API bị từ chối**,
 
 ## 31. "Watch Out" của bài Model Selection
 
-**Mục Watch Out chính thức của bài này: chưa nhận được** (xem cuối mục). Bản dán đầu chỉ có ba khung (mục 29); bảng dưới là bẫy ngầm mình suy ra từ ba khung đó, đã đưa vào bảng mục 8:
+**Bài này không có mục Watch Out riêng** (bạn xác nhận từ mục lục khóa, xem cuối mục). Bản dán đầu chỉ có ba khung (mục 29); bảng dưới là bẫy ngầm mình suy ra từ ba khung đó, đã đưa vào bảng mục 8:
 
 | Bẫy | Cách tránh |
 |---|---|
@@ -1030,7 +1030,7 @@ Cả hai đều là **tham số hoặc tính năng của API bị từ chối**,
 
 **[ngoài tài liệu]** Bẫy mình thêm: tin rằng "đổi model chỉ là đổi một dòng ID" (mục 30), và dùng tập eval quá dễ nên điểm chạm trần, không đủ cơ sở nâng hay hạ bậc (mục 28.1).
 
-**Mục Watch Out (case "Why this broke") của bài Model Selection: chưa có.** Ba bài còn lại của ngày đã có (mục 8.1, 21.2, 44.1); bài này chờ tài liệu gửi bù, sẽ ghi thành mục 31.1.
+**Model Selection không có Watch Out riêng.** Mục lục của khóa (module 04, "Failure Handling & Model Selection") đi theo thứ tự: Teaching, **Watch Out**, Checkpoint, Model Selection, Checkpoint. Chỉ có **một** Watch Out, nằm ngay sau Teaching của Failure Handling (mục 21.2); phần Model Selection chỉ có Teaching và Checkpoint (mục 29.1). Vì vậy không có mục 31.1 để chờ. Hai hệ quả: (1) bẫy ngầm trong bảng trên vẫn là **suy luận của mình**, không có case chính thức nào kiểm; (2) bẫy của Model Selection mà khóa nhấn thật sự nằm ở **Checkpoint** (mục 29.1), nơi mỗi đáp án sai là một bẫy: chọn theo một trục (nhanh, rẻ, mạnh) thay vì ràng buộc quyết định.
 
 ## 32. Nối với notes cũ **[ngoài tài liệu]**
 
@@ -1349,4 +1349,4 @@ Thang chọn của LAB2 mục 7: một lần gọi, workflow, agent, nhiều age
 - **Bản dán thiếu** nội dung của hai tab "Prompt & context size" và "Number of tool calls"; nếu có bản đầy đủ thì bổ sung mục 37.
 - **Nếu làm Lab 4:** viết một wrapper đo đầy đủ (ghi cả lỗi, hai trường cache, `run_id`, `agent_id`, model); thêm bản ghi thời gian vào `lab2_agent.py`; chạy `bench_models.py` có thêm đo `cache_read_input_tokens`; viết thử một orchestrator nhỏ (lead cộng 2 subagent) và so chi phí, độ trễ, điểm eval với một agent.
 - **Ba việc còn treo từ các phần trước:** lưu kết quả eval để so phiên bản (W4D2 mục 12; Phần A mục 5.2), tái hiện 429 và 529 bằng server giả (Phần B mục 20 điểm 8), sửa câu chữ quy tắc "rẻ nhất" trong NOTES.md mục 2 (Phần C mục 28.1).
-- **Tổng kết ngày:** mục Watch Out của khóa là case "Why this broke" cuối mỗi bài (bạn đã xác nhận). Đã có cho **Testing** (mục 8.1), **Failure Handling** (mục 21.2) và **Cost & Orchestration** (mục 44.1), nên câu 4 của bảng hướng dẫn trả lời được cho ba phần tư. **Model Selection còn thiếu** (mục 31); khi có thì ghi thành mục 31.1, và cập nhật hàng 4 của bảng mục 1 thành "Đủ". Các bảng bẫy ngầm ở mục 8, 21, 31, 44 vẫn giữ làm phần suy ra thêm. Case của Evals & Judges nằm ở W4D3 mục 8.1, của Security ở W4D6 mục 10.1.
+- **Tổng kết ngày:** mục Watch Out của khóa là case "Why this broke" cuối mỗi bài (bạn đã xác nhận). Đã có cho **Testing** (mục 8.1), **Failure Handling** (mục 21.2) và **Cost & Orchestration** (mục 44.1), nên câu 4 của bảng hướng dẫn trả lời được cho mọi bài **có** Watch Out. **Model Selection không có Watch Out riêng** (cấu trúc khóa: một Watch Out cho cả module Failure Handling & Model Selection, mục 31), nên không còn gì chờ gửi bù; thay vào đó có Checkpoint (mục 29.1). Các bảng bẫy ngầm ở mục 8, 21, 31, 44 vẫn giữ làm phần suy ra thêm. Case của Evals & Judges nằm ở W4D3 mục 8.1, của Security ở W4D6 mục 10.1.

@@ -2,6 +2,21 @@
 
 Nối với [NOTES_W4D5_Production_Hardening.md](NOTES_W4D5_Production_Hardening.md) (testing, failure handling, chọn model, cost). Bài này **không thuộc bảy câu hỏi** của bảng ở đó. Tham chiếu "W4D5 mục N" hoặc "W4D5 Phần X" là mục của file W4D5.
 
+**Cấu trúc W4D6 theo mục lục khóa** (và nơi ghi trong file này):
+
+| Module | Phần | Trạng thái | Ghi ở |
+|---|---|---|---|
+| 06 Security | Teaching | Xong | Mục 1 đến 9 |
+| | Watch Out | Xong | Mục 10.1 |
+| | Checkpoint | Xong | Mục 8.2 |
+| 07 Cumulative Task | Find the Defects | Đã làm, **đã có đáp án khóa** | Mục 13 |
+| | Write the Fix | Đã có đáp án khóa | Mục 13.1 |
+| 08 Key Takeaways | Recap | Đã có | Mục 14 (cả 14.1 bài tiếp theo, 14.2 nguồn) |
+| | Glossary | **Chưa nhận** | Sẽ ghi vào mục 15 |
+| 09 Module Complete | | | |
+
+Vì Cumulative Task và Key Takeaways là **cả module 4** (eval, test và tracing, failure handling, cost, bảo mật), không riêng bảo mật, các phần này tham chiếu ngược lên W4D3 đến W4D5.
+
 Nguồn: bài "Securing the integration against untrusted input and a regulated review". Bài dùng lại hai thứ đã học: **hook** (W3D1 mục 3, Lab 3 mục 6.4) và **khung doanh nghiệp có quy định** (W3D3 mục 4). Chỗ **[ngoài tài liệu]** là suy luận hoặc đối chiếu của mình; mã trong bài là mã minh hoạ, chưa chạy.
 
 ## 1. Bài này đứng ở đâu
@@ -291,4 +306,172 @@ def is_allowed(p): return Path(p).resolve().is_relative_to(ALLOWED)
 - **Chưa đối chiếu docs:** dạng JSON `hookSpecificOutput` so với exit code; tên trường thật của hook cho `Write`/`Edit`; cách cấu hình sandbox (file, mạng) trong settings; bộ phân loại của Anthropic chạy ở đâu và bắt gì.
 - **Chưa kiểm:** danh sách model ZDR hiện hành ở Trust Center và theo từng nền tảng; hành vi của sandbox trên Windows.
 - **Nếu làm Lab 4:** (1) thêm 5 đến 10 ca injection vào dataset eval và đo tỉ lệ model làm theo; (2) viết hook chặn ghi ngoài thư mục có chuẩn hoá đường dẫn và test bằng JSON giả, kể cả `..` và `output-evil`; (3) thử bật sandbox và chạy lại ba lệnh lách của Lab 3; (4) thêm ca "judge bị injection" vào pipeline chấm của W4D3.
-- **Watch Out:** đã nhận (mục 10.1); bảng ở mục 10 là bẫy ngầm mình suy ra thêm. Các case của W4D5 nằm ở [NOTES_W4D5_Production_Hardening.md](NOTES_W4D5_Production_Hardening.md) mục 8.1, 21.2, 44.1 (Model Selection chưa có).
+- **Watch Out:** đã nhận (mục 10.1); bảng ở mục 10 là bẫy ngầm mình suy ra thêm. Các case của W4D5 nằm ở [NOTES_W4D5_Production_Hardening.md](NOTES_W4D5_Production_Hardening.md) mục 8.1, 21.2, 44.1 (Model Selection không có Watch Out riêng).
+- **Còn thiếu so với mục lục khóa:** Glossary (Key Takeaways); khi có thì ghi vào mục 15.
+
+---
+
+## 13. Cumulative Task, phần "Find the Defects": tìm ba lỗi trong một ứng dụng **[docs]** và đánh giá **[ngoài tài liệu]**
+
+Phần kế tiếp của khóa là "Write the Fix" (đáp án và đối chiếu ở mục 13.1); bản sửa ở cuối mục này là của mình, làm trước khi xem đáp án.
+
+**Đề.** Một ứng dụng chạy được, có **ba lỗi cài sẵn, mỗi lỗi ở một tầng khác nhau** (các tầng của module: eval, test và tracing, failure handling, cost và orchestration, bảo mật). Với mỗi lỗi: nêu **tầng**, viết **một câu về hậu quả lúc chạy**, rồi sửa và **tích hợp** cả ba. Đáp án của khóa cho phần "Find the Defects" đã nhận (xem "Đáp án của khóa" bên dưới); các đoạn trước đó là phân tích của mình **trước khi xem đáp án**, và lỗi thứ ba ở đó **đã đoán sai**.
+
+```python
+def answer(question, page_url):
+    page = fetch(page_url)                       # untrusted content
+    notes = read_file("/workspace/input/notes")
+    write_file(page.suggested_path, summarize(page))
+    resp = None
+    for i in range(5):
+        try:
+            resp = client.messages.create(model=MODEL, max_tokens=MAX_TOKENS, messages=msg(question))
+            break
+        except Exception:
+            time.sleep(0)
+    return resp.content[0].text
+```
+
+**Ba lỗi mình đọc ra:**
+
+| # | Dòng | Tầng | Hậu quả lúc chạy |
+|---|---|---|---|
+| 1 | `except Exception: time.sleep(0)` | **Failure handling** | Retry **mù** (cả 400, 401 cũng thử 5 lần) và **không chờ**, nên càng dội vào rate limit. Hết 5 lần thì vòng lặp **kết thúc im lặng**, `resp` còn `None`, dòng cuối nổ `AttributeError: 'NoneType' object has no attribute 'content'`, che mất lỗi thật |
+| 2 | `write_file(page.suggested_path, ...)` | **Bảo mật** | **Đích ghi do trang không tin cậy quyết định.** Một dòng ẩn trong trang đủ khiến agent ghi nội dung vào đâu cũng được (đúng case mục 10.1) |
+| 3 | `msg(question)` | **Test và tracing** (mối nối, integration) | `page` đã fetch và `notes` đã đọc nhưng **không có trong prompt**: model trả lời từ trí nhớ, **không lỗi nào được ném**, từng hàm riêng vẫn qua test. Dấu hiệu: `notes` được gán mà **không bao giờ được dùng** |
+
+Lỗi 3 là phần mình **chưa chắc** vì không có đáp án. Lý do chọn: nó khớp case Watch Out và checkpoint của bài Testing (W4D5 mục 8.1, 8.2): dữ liệu truy xuất không tới model. Ứng viên khác cùng nhóm: **không có trace hay ghi chỉ số nào** (token, độ trễ, số lần retry), và `summarize(page)` là **lần gọi model thứ hai không được đo** (tầng cost và quan sát, W4D5 mục 36).
+
+**Lỗi 3: "tầng eval" hay "tầng test"?** Tách hai câu hỏi. *Lỗi nằm ở đâu:* ở mối nối trong mã (`msg(question)` bỏ `page` và `notes`), nên là lớp **test, mức integration** (W4D5 mục 8.1, 8.2). *Tầng nào bắt được:* integration test bắt rẻ nhất (model giả, khẳng định prompt chứa văn bản page); **eval chỉ bắt được nếu có ca mà đáp án đúng chỉ nằm trong page hoặc notes** (như cụm "30 days"), còn eval chấm chất lượng chung có thể vẫn cho điểm khá khi model trả lời từ trí nhớ (W4D5 mục 2). Nếu khóa gộp eval, test, tracing thành một nhóm ("mỗi lỗi từ một nhóm tầng khác nhau") thì hai cách gọi cùng rơi vào nhóm đó; nên nêu cả hai trong câu trả lời, chưa có đáp án khóa để khẳng định. *(Đã có đáp án: xem ngay dưới, lỗi thứ ba của khóa là "không có eval".)*
+
+**Đáp án của khóa [docs].** Ba lỗi, mỗi lỗi ở một **nhóm tầng** khác nhau:
+
+| Nhóm tầng | Lỗi theo khóa |
+|---|---|
+| **Eval và test** | **Không có eval nào.** Thành công được đánh giá bằng **ba lần chạy demo thủ công**, không có holdout, không có ca đã chấm, nên **không có gì để rớt khi đổi prompt hoặc model** (không bắt được hồi quy) |
+| **Xử lý lỗi và chi phí** | Vòng retry thử lại **mọi status ngay lập tức** với `time.sleep(0)`, không phân biệt lỗi terminal (400) với lỗi retriable; với rate limit thì mỗi lần thử tức thì làm hạn mức **sâu thêm** thay vì chờ nó tan |
+| **Bảo mật và guardrail** | `write_file` dùng `page.suggested_path` làm đích, một đường dẫn lấy từ **nội dung fetch không tin cậy**, **không có hook `PreToolUse`** cưỡng chế ranh giới ghi và **không có phạm vi** giới hạn agent được ghi gì |
+
+**Đối chiếu.**
+1. **Lỗi thứ ba: mình đoán sai, câu hỏi "tầng eval nhỉ?" của mình mới đúng.** Mình đã chọn "mối nối `msg(question)` bỏ `page` và `notes`" (tầng test, integration) và đặt eval chỉ là ứng viên bắt lỗi. Đáp án của khóa là **thiếu hẳn eval**. Chẩn đoán nhóm thì đúng (eval, test, tracing là một nhóm; nhãn của khóa là "Eval/test layer", gộp hai thứ); chọn lỗi cụ thể thì sai, vì **nội dung đáp án chỉ nói về eval** (không ca chấm, không holdout, không bắt được hồi quy) và không nhắc integration test hay mối nối. Vậy "tầng eval" (bạn) và "tầng test" (mình) bổ sung nhau ở mức **nhóm**, còn lỗi cụ thể khóa nêu là thiếu eval. Bản sửa tốt cần cả hai vì eval đo hành vi trên cả tập, test kiểm bộ máy (W4D5 mục 11.4). Lý do: mình đọc **mã**, còn lỗi của khóa nằm ở **bối cảnh** ("ba lần chạy demo thủ công") không hiện trong đoạn mã mình thấy. (Mình không biết đề có hiển thị bối cảnh đó ở chỗ khác hay không; đoạn được gửi chỉ có mã.) Đây đúng là postmortem ở W4D3 mục 8.1 (12 tin mẫu, không holdout) thành bài tập.
+2. **Lỗi `msg(question)` bỏ `page` và `notes` vẫn là quan sát đúng về đoạn mã**, nhưng nhiều khả năng chỉ là **mã mẫu đơn giản hoá**, không phải lỗi cài sẵn. Nó là loại ca mà **eval tốt sẽ bắt** (ca có đáp án chỉ nằm trong page hoặc notes). Mình giữ như một ca đưa vào eval, không coi là một trong ba lỗi.
+3. **Lỗi xử lý lỗi và chi phí:** khớp hoàn toàn với phân tích của mình và với checkpoint ở W4D5 mục 21.3. Khóa **không nêu** hai thứ mình thêm (`resp` còn `None` nổ `AttributeError`; chưa kiểm `stop_reason`); hai thứ này vẫn đúng nhưng không nằm trong đáp án chính. Khóa gắn nhóm này với "chi phí" vì retry dội chính là chi phí (mỗi lần thử là một request).
+4. **Lỗi bảo mật:** khóa có **ba mảnh**: đích lấy từ nội dung không tin cậy, thiếu hook, thiếu phạm vi. Điều mình từng bác ("mọi action gom một hàm nên user full quyền") thực ra **trùng một mảnh** là "không có phạm vi giới hạn agent được ghi gì". Cách nói "một hàm, full quyền" sai nguyên nhân, nhưng mối lo "không có giới hạn quyền" đúng và **thuộc cùng lỗi bảo mật này**, không phải lỗi riêng. Vậy phần của mình được tính vào lỗi 2 chứ không thành lỗi thứ ba.
+5. **Cách tính điểm:** mình tìm được hai lỗi (failure, bảo mật) và **bỏ sót lỗi eval**; lúc sau chỉ ra đúng tầng khi mình hỏi "tầng eval nhỉ?". Bài học: khi đọc mã mà không thấy lỗi thứ ba ở dòng nào, **hỏi các tầng không để lại dấu vết trong mã**: eval, trace, ngân sách. Chúng thường thiếu hẳn thay vì sai ở một dòng.
+
+**Đánh giá câu trả lời của mình** (mình tìm được hai trong ba):
+1. **Failure handling: đúng.** Bổ sung hậu quả mà mình chưa nêu: hết lượt thì `resp` còn `None` và lỗi bị thay bằng `AttributeError` (đề hỏi đúng "hậu quả lúc chạy"). Thêm: `resp.content[0].text` chưa kiểm `stop_reason` (refusal, `max_tokens`) nên `content` có thể rỗng hoặc cụt (W4D5 mục 20 điểm 3).
+2. **Prompt injection: đúng tầng, mô tả cần chỉnh.** Lỗi **không phải** "ghi tóm tắt mà không validate" mà là **đích ghi lấy từ nội dung không tin cậy**. Validate nội dung tóm tắt không chữa được (case 10.1: tool nhận đường dẫn tuỳ ý). Cần: đích do **ta** quyết định, hook và danh sách đường dẫn cho phép (có chuẩn hoá, mục 8.2), ghi audit.
+3. **"Mọi action gom vào một hàm nên user full quyền" không phải lỗi thứ ba.** Gom các lệnh gọi vào một hàm **không cấp quyền**; quyền nằm ở **danh tính và phạm vi của tool**. Mối lo của mình có thật nhưng nó **cùng gốc với lỗi 2**: `write_file` nhận đường dẫn tuỳ ý, tức thiếu quyền tối thiểu (lớp 3, mục 8.1). Phần "user không có phân quyền" là lớp 0, và mục 8.1 điểm 3 đã nói chặn ở tầng user **không chặn được injection**; trong mã cũng không có khái niệm user nào để phân quyền. Vì vậy mình mới có **hai** tầng (failure, bảo mật), thiếu tầng thứ ba.
+
+**Bản sửa tích hợp [chưa chạy; `fetch`, `client`, `msg` là của đề]:**
+
+```python
+OUT_DIR  = Path("/workspace/output").resolve()
+OUT_FILE = OUT_DIR / "summary.txt"                   # đích do ta quyết định, không lấy từ trang
+
+def answer(question, page_url):
+    page    = fetch(page_url)                        # dữ liệu, không phải chỉ dẫn
+    notes   = read_file("/workspace/input/notes")
+    summary = summarize(page)                        # lần gọi model không có tool
+    write_file(OUT_FILE, summary)                    # hook PreToolUse vẫn kiểm đích và ghi audit
+
+    resp = call_with_retry(lambda: client.messages.create(     # bản ở W4D5 mục 21.3
+        model=MODEL, max_tokens=MAX_TOKENS,
+        messages=msg(question, context=[summary, notes])))     # nối dữ liệu vào prompt
+    if resp.stop_reason == "refusal":
+        raise RefusalError("model refused")          # lỗi riêng, không nằm trong đường retry
+    return resp.content[0].text
+```
+
+**Ba sửa nối nhau:** `call_with_retry` ném lỗi gốc (không còn `None`); đích ghi cố định cộng hook và audit (injection chạm tường chứ không chạm đĩa); `context` vào prompt cộng **một integration test** gắn model giả, khẳng định prompt chứa văn bản của `summary` và `notes` (W4D5 mục 8.2 điểm 5). Test bảo mật đi kèm: fixture là trang có dòng lệnh ẩn, khẳng định **không có file nào được ghi ngoài `/workspace/output`** (mục 10.1 điểm 6).
+
+**Phần còn thiếu của bản sửa, theo đáp án khóa: dựng eval.** Bản sửa trên chưa có lỗi 3 của khóa. Một eval tối thiểu cho `answer()` [chưa làm]:
+- **Dataset có ca đã chấm** (hàng chục ca, không phải 3): ca thường; ca có đáp án **chỉ nằm trong page hoặc notes** (bắt luôn lỗi `msg(question)` bỏ dữ liệu); ca **trang có dòng lệnh ẩn** (kiểm injection); ca ngoài phạm vi.
+- **Mỗi ca có `expected_behavior` cụ thể** do người viết, và **một phần giữ lại làm holdout** không dùng khi chỉnh prompt (W4D3 mục 8.1, 8.2).
+- **Grader theo hình dạng output:** code check (đáp án chứa sự kiện, không có file ghi ngoài đường dẫn cho phép) và judge có thang điểm neo cho chất lượng (W4D3 mục 4.1, 6).
+- **Chạy lại mỗi khi đổi prompt hoặc model**, xem **từng ca** chứ không chỉ trung bình (W4D3 mục 9.2), làm **cổng chặn hồi quy** trước khi ship.
+
+### 13.1 Cumulative Task, phần "Write the Fix": đáp án của khóa **[docs]** và đối chiếu **[ngoài tài liệu]**
+
+```python
+def answer(question, page_url):
+    page = fetch(page_url)                   # still untrusted
+
+    # security: fixed write path + PreToolUse hook enforces it
+    notes = read_file("/workspace/input/notes")  # scoped read, unchanged
+    write_file("/workspace/output/summary.txt", summarize(page))
+    # (hook denies any write outside /workspace/output and audits it)
+
+    # error handling: backoff, honor retry-after, fail fast on terminal
+    resp = call_with_retry(
+        lambda: client.messages.create(model=MODEL, max_tokens=MAX_TOKENS, messages=msg(question)))
+
+    # eval: answer() is covered by a graded holdout set run on every change
+    return resp.content[0].text
+```
+
+Câu chốt của khóa: **mỗi sửa nằm ở tầng nó bảo vệ.** Đường dẫn ghi cố định và hook đóng ranh giới bảo mật **trước khi tool chạy**; `call_with_retry` thêm backoff luỹ thừa và nhận diện status terminal; tập holdout đã chấm cho eval một **điểm nền (baseline) để rớt** ở mọi thay đổi sau.
+
+| Tầng | Khóa | Bản sửa của mình (mục 13) | Nhận xét |
+|---|---|---|---|
+| Bảo mật | Đích cố định `/workspace/output/summary.txt`; hook `PreToolUse` chặn ghi ngoài `/workspace/output` và audit; đọc `notes` có phạm vi, giữ nguyên | `OUT_FILE` cố định trong thư mục đã resolve; hook và audit | **Khớp.** Mình thêm chuẩn hoá đường dẫn (mục 8.2) |
+| Xử lý lỗi | `call_with_retry` (backoff, theo `retry-after`, fail fast với terminal) | Cùng hàm, bản đã vá ở W4D5 mục 21.3 | **Khớp** |
+| Eval | **Chỉ là một dòng chú thích**: `answer()` được phủ bởi tập holdout đã chấm, chạy mỗi lần đổi | Đặc tả eval chi tiết (mục 13, phần cuối) | Khớp ý; khóa **không viết mã** cho eval |
+| Khác | `msg(question)` và `resp.content[0].text` **giữ nguyên** | Mình thêm `context` vào prompt và kiểm `stop_reason == "refusal"` | Phần của mình **vượt đáp án** |
+
+**Đối chiếu:**
+1. **Ba sửa khớp về cấu trúc.** Điểm mình chưa có khi làm bài đầu là sửa thứ ba (eval), bổ sung sau khi biết đáp án của "Find the Defects".
+2. **Khóa giữ nguyên `msg(question)` và `notes` vẫn không được dùng.** Xác nhận lại rằng việc "dữ liệu không vào prompt" **không phải lỗi cài sẵn**, chỉ là mã mẫu rút gọn (mục 13, đối chiếu điểm 2). Các thứ mình thêm (đưa `context` vào prompt, kiểm `refusal`) hợp lý nhưng **không có trong đáp án**; không nên coi là thiếu khi so điểm.
+3. **Eval không nằm trong hàm.** Sửa của tầng eval là **một tập dữ liệu cộng một lần chạy**, không phải một dòng mã trong `answer()`; chú thích trong mã chỉ là chỗ đánh dấu. Ba sửa nằm ở ba nơi khác nhau: **cấu hình hook** (bảo mật), **hàm bọc** (retry), **dataset cộng bộ chạy** (eval). Đây là cách hiểu "mỗi sửa ở tầng nó bảo vệ".
+4. **Hook thành bức tường thứ hai.** Khi đường dẫn đã cố định trong mã, trang **không còn chọn được đích**; hook chỉ còn bắt trường hợp ai đó **đổi lại mã** (hồi quy) hoặc cấu hình sai. Đúng hình dạng phòng thủ nhiều lớp ở mục 8: lớp mã loại bỏ nguồn, lớp hook cưỡng chế và ghi dấu. Hook vẫn nên được **test bằng JSON giả** như Lab 3, vì nếu không có ca nào làm nó kích hoạt thì không biết nó có chạy.
+5. **Chỗ khóa không nói: khi hook từ chối thì sao?** `write_file` lỗi, hàm không bắt, nên `answer()` **dừng trước lần gọi model** (đóng khi lỗi, fail closed). Hợp lý cho bảo mật, nhưng là quyết định cần ghi vào design doc (W4D3 mục 2.4) chứ không để ngầm. Cũng lưu ý: lỗi từ hook là **terminal**, không đi qua `call_with_retry` vì hàm đó chỉ bọc lần gọi model.
+6. **`call_with_retry` của khóa mang theo các chỗ hở đã ghi ở W4D5 mục 21.3** (ngủ sau lần cuối, `retry-after` không trần, dạng ngày HTTP, timeout không được retry, mất lỗi gốc). Bản dùng thật nên dùng bản đã vá.
+7. **"Baseline để rớt"** nghĩa là: không có điểm nền thì đổi prompt hoặc model không có gì để so và không có gì để rớt (W4D2 mục 25: baseline không tốt hay xấu tự thân; W4D5 mục 11.5: so v2 với v1 cùng dataset, cùng grader). Điều kiện: điểm nền phải được **lưu** (W4D2 mục 12 còn treo).
+8. **[ngoài tài liệu] Điều khóa không nêu:** `summarize(page)` vẫn chứa nội dung lấy từ trang không tin cậy và được ghi ra file. Ranh giới đĩa đã đóng, nhưng nếu file này **được đọc lại** ở bước sau (agent khác, hoặc người), nó là kênh injection gián tiếp; khi đọc lại phải coi nó là dữ liệu không tin cậy.
+
+---
+
+## 14. Key Takeaways của cả module 4 (Recap) **[docs]**
+
+Năm ý chốt của khóa, dịch lại và gắn với nơi đã ghi trong notes.
+
+| # | Ý chốt | Ghi ở | Watch Out | Checkpoint |
+|---|---|---|---|---|
+| 1 | **Đặt chuẩn trước khi xây.** Eval biến "xong" từ cảm giác thành điểm trên một tập ca cố định. Chọn cách chấm theo output: **so khớp chính xác** khi chỉ có một dạng đúng, **code check** cho output có cấu trúc, **judge** cho chất lượng mở, và judge phải **hiệu chuẩn với ca người gắn nhãn** trước khi tin. Viết eval **trước** vì xác định hành vi mong đợi buộc ta định nghĩa thành công khi thiết kế còn đổi được | W4D3 mục 3 đến 9 | W4D3 mục 8.1 | W4D3 mục 8.2 |
+| 2 | **Chọn test theo kiểu lỗi, và trace để biết lỗi xảy ra ở đâu.** Unit, functional, integration, E2E mỗi mức bắt một kiểu vỡ; **phần lớn lỗi im lặng nằm ở mối nối integration**, nơi hai thành phần đều qua test rồi bàn giao cho nhau. Trace cho biết bước nào sinh kết quả xấu, biến một ngày điều tra thành một bản sửa ngắn. Cùng bản năng đó cho việc chọn retrieval: **fetch một lần** cho tra cứu một sự kiện, **tìm lặp** khi câu hỏi thật sự nhiều bước | W4D5 Phần A (mục 3 đến 11) | W4D5 mục 8.1 | W4D5 mục 8.2 |
+| 3 | **Phân loại mọi lỗi rồi xử lý riêng từng loại.** Câu đầu tiên: chờ và thử lại có giải quyết được không? Lỗi retriable dùng **backoff luỹ thừa có trần và ngân sách retry**, không bao giờ vòng lặp tức thì. Lỗi tool **trả về cho model kèm cờ lỗi**, không giấu sau kết quả rỗng mà model tưởng là dữ liệu. **Mọi lỗi retry không cứu được cần một fallback có tên**; nếu không, ngoại lệ không xử lý thành hành vi mặc định, và một phản hồi xấu kéo sập cả luồng | W4D5 Phần B (mục 15 đến 21) | W4D5 mục 21.2 | W4D5 mục 21.3 |
+| 4 | **Đo chi phí và độ trễ từng lần gọi; chỉ rẽ nhánh khi việc thật sự chia được.** Không ngân sách được thứ không đo, nên ghi token, độ trễ, tỉ lệ lỗi ở **mọi** lần gọi, rồi chỉnh một đòn bẩy đã chọn thay vì đoán từ hoá đơn. Orchestrator-worker **nhân chi phí token** theo số subagent, khoảng **15 lần** ở trường hợp Anthropic báo cáo; chỉ đáng khi việc chia thành phần **độc lập song song**, không đáng với việc gắn chặt mà một agent làm với một phần nhỏ chi phí | W4D5 Phần D (mục 36 đến 43) | W4D5 mục 44.1 | W4D5 mục 44.2 |
+| 5 | **Coi nội dung lấy về là dữ liệu và cưỡng chế ranh giới bằng hook.** Model đọc cả context như một dòng token không có ranh giới dựng sẵn giữa chỉ dẫn tin cậy và dữ liệu không tin cậy. Lệnh ẩn trong nội dung fetch có thể ảnh hưởng agent; **tin người dùng của mình không giúp** vì injection đến qua nội dung agent đọc. Xem input không tin cậy là dữ liệu, giới hạn danh tính ở quyền tối thiểu, giữ secret ngoài cấu hình commit, và cưỡng chế ranh giới hành động bằng **hook chặn và ghi log trước khi tool chạy**. Ranh giới đó là thứ một cuộc rà soát có quy định kiểm soát và xem xét được | W4D6 mục 1 đến 8 | W4D6 mục 10.1 | W4D6 mục 8.2 |
+
+Bài tập tổng hợp ghép cả năm: W4D6 mục 13 (tìm lỗi) và 13.1 (sửa). **Model Selection (W4D5 Phần C, checkpoint mục 29.1) không có ý chốt riêng**, khớp với việc bài không có Watch Out riêng: khóa coi chọn model là **một trong các đòn bẩy của ý 4** (W4D5 mục 37, hàng "Model selection").
+
+**Nhận xét [ngoài tài liệu]:**
+1. **Ý chốt không đầy đủ so với bài dạy.** Ý 5 nhắc quyền tối thiểu, secret, hook, rà soát có quy định nhưng **không nhắc sandbox mức hệ điều hành** (mục 7) và **ZDR** (mục 6). Cả hai vẫn nằm trong Teaching [docs]; notes giữ chúng, không bỏ vì recap không nhắc. Tương tự ý 3 không nhắc **idempotency** hay deadline tổng (mình thêm ở W4D5 mục 20), và ý 4 không nhắc caching hay Batches dù bài dạy.
+2. **Thứ tự năm ý là thứ tự của một hệ thống đang được dựng:** đặt chuẩn (1), kiểm bộ máy (2), sống sót khi lỗi (3), chịu nổi chi phí (4), giữ an toàn (5). Mỗi ý trả lời một câu hỏi khác nên không ý nào thay được ý nào; bài tập tổng hợp đúng là ba lỗi từ ba nhóm khác nhau cùng lọt vào một hàm.
+3. **Ý 3 dùng hai chữ bài W4D5 đã chỉ ra là chưa định nghĩa**: "retry budget" (số lần, tổng thời gian chờ hay token? W4D5 mục 20 điểm 6) và "named fallback" (checkpoint Failure Handling không có fallback nào trong mã, W4D5 mục 21.3). Hiểu là: ngân sách retry **nằm trong** trần độ trễ của design doc, fallback là một dòng trong bảng quyết định lỗi (W4D5 mục 18).
+4. **Ý 4 trả lời nửa câu hỏi nợ ở W4D5 mục 40.2 điểm 1:** khóa nay nêu nguồn nhóm của con số 15 lần là **bài viết nghiên cứu multi-agent của Anthropic (S3 bên dưới)**. Mình **chưa mở nguồn** nên "15 lần so với chat" và quan hệ với "4 lần chat của một agent" vẫn chưa đối chiếu.
+
+### 14.1 Bài tiếp theo của khóa **[docs]** và nối với notes **[ngoài tài liệu]**
+
+Module sau biến hệ thống sẵn sàng production thành **bộ tăng tốc dùng lại và tài sản trí tuệ đóng góp được**: đóng gói bản dựng thành **template có tham số, MCP server hoặc bộ eval mang đi được**; đóng góp qua kênh mà người bảo trì chấp nhận; rồi **chọn, ghim phiên bản và bênh vực nơi chạy** trên API gốc, Amazon Bedrock và Google Vertex AI, để đổi model hoặc rà soát residency **không làm hỏng production**. Phần **đặc thù nền tảng triển khai** mà module này để dành lại nằm ở đó.
+
+| Ý của module sau | Nối với |
+|---|---|
+| Template có tham số, đóng gói quy trình | W3D2 `NOTES_W3D2_Packaging_Workflows.md` |
+| MCP server mang đi được | Lab 3 (`labs/lab3/mcp-server`), `NOTES_W3D2_MCP_Servers.md` |
+| **Bộ eval mang đi được** | W4D2, W4D3: dataset và grader phải tách khỏi một prompt cụ thể và **đóng băng** (W4D3 mục 11 điểm 7) |
+| **Ghim phiên bản model** | W4D5 mục 30: đổi model làm vỡ tham số (`temperature`, prefill) và tư cách ZDR; cần hồ sơ cấu hình theo model và smoke test tương thích |
+| **Residency và retention theo nền tảng** (Bedrock, Vertex, Foundry) | W4D6 mục 6: ZDR "thay đổi theo model và theo nền tảng", cần xác nhận **từng nền tảng** lúc scoping. Đây là chỗ module sau đi sâu |
+
+### 14.2 Nguồn công khai khóa dẫn (nhạy theo thời gian) **[docs]**
+
+| ID | Nguồn | Loại | Dùng cho |
+|---|---|---|---|
+| S1 | platform.claude.com/docs | Tài liệu sản phẩm | Công cụ eval và cách chấm, các mức test, mã lỗi API, hướng dẫn retry và backoff, cờ lỗi `tool_result`, quan sát và prompt caching, IAM và phòng thủ injection |
+| S2 | code.claude.com | Tài liệu sản phẩm | Sự kiện vòng đời hook của Claude Code (`PreToolUse`) và mẫu guardrail |
+| S3 | anthropic.com và bài viết nghiên cứu multi-agent của Anthropic | Bài kỹ thuật, nghiên cứu | Mẫu orchestrator-worker và chi phí khoảng 15 lần token; agentic search so với RAG và phát hiện về retrieval của Claude Code; phòng thủ injection |
+| S4 | *Building with the Claude API* (Skilljar) | Khóa Anthropic | Pipeline eval, code grader và model grader, cơ chế RAG, mẫu workflow, prompt caching (chỉ kiến thức khái niệm ổn định) |
+| S5 | *Claude Code 101 In Action* (Skilljar) | Khóa Anthropic | Hook và cấu hình Claude Code từ module trước |
+
+Mọi mục "chưa đối chiếu" trong notes về giá, mã lỗi, tên header và cú pháp hook có thể đối chiếu ở S1 và S2. **Chưa làm.**
