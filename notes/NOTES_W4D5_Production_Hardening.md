@@ -1,6 +1,6 @@
 # Notes Week 4 Day 5: Production hardening (Testing & Tracing, Failure Handling & Model Selection, Cost & Orchestration)
 
-Nguồn hiện có: bài "Testing and tracing" (bốn mức test, tracing, routing giữa hai kiểu retrieval, bảng tham chiếu). Phần B (Failure Handling), Phần C (Model Selection) và Phần D (Cost & Orchestration) nằm ở cuối file. **[ngoài tài liệu]** là suy luận hoặc kiến thức bổ sung của mình, cần đối chiếu docs khi áp dụng.
+Nguồn hiện có: bài "Testing and tracing" (bốn mức test, tracing, routing giữa hai kiểu retrieval, bảng tham chiếu). Phần B (Failure Handling), Phần C (Model Selection) và Phần D (Cost & Orchestration) nằm ở cuối file. Bài bảo mật (prompt injection, quyền tối thiểu, hook, sandbox) đã tách sang [NOTES_W4D6_Securing_Integration.md](NOTES_W4D6_Securing_Integration.md). **[ngoài tài liệu]** là suy luận hoặc kiến thức bổ sung của mình, cần đối chiếu docs khi áp dụng.
 
 Nối với notes cũ: eval và judge ở [NOTES_W4D3_Evals_Judges.md](NOTES_W4D3_Evals_Judges.md) mục 3, 4, 12.1; pipeline `run_eval` và chỗ còn thiếu "lưu kết quả để so phiên bản" ở [NOTES_W4D2_Eval_Dataset_Running.md](NOTES_W4D2_Eval_Dataset_Running.md) mục 9, 12; `temperature` và prefill bị 400 ở mục 7 cùng file; trace và lỗi đã gặp ở [LAB2.md](../labs/lab2/LAB2.md) mục 3, 4, 5; kiểm thử MCP ở [LAB3.md](../labs/lab3/mcp-server/LAB3.md) mục 5; classical RAG và agentic search ở [NOTES_W3D2_Prompt_Caching_RAG.md](NOTES_W3D2_Prompt_Caching_RAG.md) mục 2.
 
@@ -13,7 +13,7 @@ Bảy câu hỏi của module, đánh giá theo tài liệu đã có. Cập nh�
 | 1 | Bốn mức test kiểm gì, ví dụ từ Lab 2 hoặc Lab 3 | Bài định nghĩa đủ bốn mức; ví dụ Lab là phần mình ánh xạ | **Đủ** (mục 3, 4) |
 | 2 | Trace ghi gì, phân biệt lỗi model với lỗi integration thế nào | Ghi gì: đủ. Cách phân biệt: bài chỉ cho ví dụ, **không nêu quy tắc** | **Đủ một nửa** (mục 5, 6) |
 | 3 | Hồi quy là gì, đổi prompt hoặc model thì mức test nào bắt đầu tiên | Bài **không định nghĩa hồi quy** và không nói mức nào bắt đầu tiên | **Thiếu**; mục 7 là suy luận từ notes cũ |
-| 4 | Các bài "Watch Out" cảnh báo bẫy nào | Bài này **không có mục Watch Out**; chỉ có ba khung "Handles well / Adds cost / Use a different approach" | **Thiếu** cho cả bốn bài Testing, Failure Handling, Model Selection, Cost & Orchestration: không bài nào có mục Watch Out (mục 8, 21, 31, 44) |
+| 4 | Các bài "Watch Out" cảnh báo bẫy nào | Mục Watch Out của khóa là một **case "Why this broke"** cuối bài (xác nhận của bạn). Bản dán đầu chỉ có ba khung "Handles well / Adds cost / Use a different approach"; case gửi bù sau cho **ba trong bốn** bài | **Đủ ba phần tư**: Testing (mục 8.1), Failure Handling (mục 21.2), Cost & Orchestration (mục 44.1); **Model Selection chưa có** (mục 31). Bảng bẫy ngầm ở mục 8, 21, 31, 44 là phần mình suy ra thêm, đứng cạnh case |
 | 5 | Retriable và terminal, người dùng nhận gì | Nhóm lỗi: đủ. Người dùng nhận gì: bài chỉ nói "caller" nhận gì, **không nêu thông báo cho người dùng cuối** | **Đủ một nửa** (Phần B, mục 19) |
 | 6 | Tiêu chí chọn model; haiku từ chối `temperature`/prefill nói gì | Tiêu chí: đủ. Đổi model làm vỡ gì ngoài chất lượng: bài **không nói**, và còn nói "đổi model không cần viết lại ứng dụng", trái với kết quả thử ở W4D2 | **Đủ một nửa** (Phần C, mục 30) |
 | 7 | Đo cost, latency, độ tin cậy khi nhiều agent; khi nào chạy song song; đối chiếu trần ngân sách W4D3 mục 2.2 | Khi nào song song: đủ. Đo: có ba chỉ số mỗi lần gọi và bảng so sánh, **thiếu cách gộp theo từng agent và theo request**. Đối chiếu với trần ngân sách: bài không làm, phần này là của mình | **Đủ phần lớn** (Phần D, mục 41 đến 43) |
@@ -192,7 +192,7 @@ Một chỗ phân biệt không sạch: **kịch bản C của Lab 2** (thử l�
 
 ## 8. "Watch Out" của từng bài
 
-**Bài này không có mục "Watch Out".** Bản dán gồm ba khung thay thế: *Handles well* (khoanh vùng lỗi, ghép mỗi test với lỗi nó thấy), *Adds cost or complexity* (tracing và bốn mức test là hạ tầng phải dựng và bảo trì), *Use a different approach* (tra cứu một sự kiện trong kho ổn định thì fetch-once thắng tìm lặp). Câu hỏi 4 nói "các bài Watch Out" (số nhiều), nhiều khả năng là mục của các bài sau; chỗ này chưa đủ để trả lời, nên ghi những gì **bài này ngầm cảnh báo** và để chỗ trống cho các bài còn lại.
+**Mục Watch Out chính thức của bài này là case ở mục 8.1** (case "Why this broke", gửi bù sau). Bản dán đầu của bài chỉ có ba khung thay thế, và các bảng "bẫy ngầm" dưới đây là phần mình suy ra từ ba khung đó, đứng **cạnh** case chứ không thay case. Ba khung: *Handles well* (khoanh vùng lỗi, ghép mỗi test với lỗi nó thấy), *Adds cost or complexity* (tracing và bốn mức test là hạ tầng phải dựng và bảo trì), *Use a different approach* (tra cứu một sự kiện trong kho ổn định thì fetch-once thắng tìm lặp). Câu hỏi 4 nói "các bài Watch Out" (số nhiều), nhiều khả năng là mục của các bài sau; chỗ này chưa đủ để trả lời, nên ghi những gì **bài này ngầm cảnh báo** và để chỗ trống cho các bài còn lại.
 
 | Bài | Bẫy | Cách tránh |
 |---|---|---|
@@ -204,6 +204,33 @@ Một chỗ phân biệt không sạch: **kịch bản C của Lab 2** (thử l�
 | Cost & Orchestration | **Quan sát đến sau** (hóa đơn đến trước lời giải thích); **hành động trên `tool_use` chưa đủ** khi stream chưa đóng; **cache vô hiệu** do đổi tiền tố, hết TTL hoặc quá ngắn; **dùng batch cho yêu cầu người dùng đang chờ**; **multi-agent cho việc gắn chặt hoặc tra cứu đơn** (nhân khoảng 15 lần token); **subagent chạy trốn**; **không xử lý lỗi từng subagent**; **cắt chi phí xuống dưới sàn độ tin cậy** | Instrument từ đầu; chờ stream đóng; giữ tiền tố ổn định và đo `cache_read_input_tokens`; batch chỉ cho việc theo lịch; mặc định một agent; trần token và vòng cho từng subagent; retriable hay terminal cho từng subagent; đặt sàn trước, cổng eval (Phần D, mục 44) |
 
 **[ngoài tài liệu]** Hai bẫy mình tự thêm cho bài này: (1) test functional/E2E khẳng định **đường đi chính xác** của agent sẽ gãy oan vì model không tất định (mục 4.5); (2) trace lưu nguyên prompt và output là rò dữ liệu nhạy cảm (mục 5.2).
+
+### 8.1 Case của bài: các mảnh qua, mối nối vỡ **[docs]**
+
+**Đây là mục Watch Out của bài Testing and tracing** (case "Why this broke", gửi bù sau khi học; bạn xác nhận là mục Watch Out của khóa).
+
+**Chuyện gì xảy ra.** Trace của một lần chạy eval: `test_parser_unit` PASS, `test_extract_shape_functional` PASS, `test_full_flow_e2e` FAIL.
+
+```
+step 1 retrieve(q)        ok   -> 3 chunks (list of dicts)
+step 2 build_prompt(ctx)  ok   -> ctx inserted as raw list
+step 3 model.call(prompt) ok   -> answer ignores the context
+step 4 assert answer...   FAIL -> model answered from memory
+cause: retrieve() returns [{"content": ...}], build_prompt() expected a plain string
+```
+
+Mỗi bên đúng khi đứng riêng. Retrieval trả list các dict, bộ dựng prompt viết để nhận chuỗi thường, nên context đến model sai dạng và model trả lời từ trí nhớ thay vì chính sách đã truy xuất. **Unit không bắt được** vì mỗi đơn vị chạy tốt; **functional không bắt được** vì lần gọi chạy tốt với input đúng dạng. Chỉ test chạy **mối nối retrieval đến model bằng dữ liệu retrieval thật** mới bắt trước người dùng.
+
+**Vì sao vỡ:** hợp đồng định dạng giữa hai bước chưa được định nghĩa và không gì cưỡng chế ranh giới. **Cách tránh của bài:** test integration chạy hai thành phần cùng nhau với dữ liệu thật.
+
+**Đối chiếu [ngoài tài liệu]:**
+1. **Đúng kịch bản mình đã dự đoán ở mục 2:** retrieval hỏng, model trả lời từ kiến thức sẵn có, và chỉ lộ ra khi có assertion về nội dung. Ở case, E2E bắt được vì có `assert` kiểm câu trả lời có dùng chính sách. Một eval chỉ chấm "chất lượng chung" có thể vẫn cho điểm khá.
+2. **Đọc trace bằng quy tắc mục 6.** Cả bốn bước đều "ok" (span xanh không nói nội dung đúng, mục 11.2 điểm 1). Manh mối nằm ở **output của bước 2** ("ctx inserted as raw list") và **output của bước 3** ("ignores the context"). Input của bước 3 đã sai, nên lỗi ở **mối nối**, đúng hàng 1 của bảng mục 6. Cần trace ghi **nội dung** prompt, không chỉ `ok` và ms (mục 5.1).
+3. **E2E cho biết "hỏng", trace cho biết "ở đâu", integration test là thứ viết sau để lỗi không quay lại.** Ba thứ làm ba việc khác nhau (mục 11.4).
+4. **Vì sao lỗi im lặng trong Python:** ghép list vào chuỗi không ném lỗi, nó thành `repr` của list, nên prompt vẫn "hợp lệ". Ở .NET, `List<Chunk>` truyền vào tham số `string` là lỗi biên dịch. Với Python cần tự dựng hợp đồng: `Chunk` là dataclass hoặc pydantic, `build_prompt(chunks: list[Chunk]) -> str`, kiểm kiểu bằng mypy, và assertion tại biên (fail fast thay vì nuốt). Bài chỉ nêu integration test; **định nghĩa hợp đồng cộng kiểm tại biên** là phần mình thêm.
+5. **Integration này không cần model thật.** Gắn model giả (mục 4.5 điểm 4) rồi khẳng định prompt cuối **chứa văn bản của chunk** và **không chứa** chuỗi kiểu `[{'content'`. Bắt đúng lỗi, chạy mỗi commit. Giữ một bộ nhỏ chạy model thật cho câu "model có dùng context không".
+6. **Cách viết assert "không trả lời từ trí nhớ":** dùng tài liệu mà model không thể biết (chính sách tưởng tượng, mã số riêng). Câu trả lời đúng chỉ có thể đến từ chunk. Nếu dùng tài liệu có trong kiến thức chung thì model trả lời đúng dù context hỏng, và case sẽ không bị bắt.
+7. Đây là bẫy 1 của bảng mục 8 ("chỉ có eval hoặc chỉ có test từng mảnh") thành ví dụ cụ thể.
 
 ## 9. Ghi trước phần đã biết cho hai chủ đề sau **[ngoài tài liệu]**
 
@@ -372,7 +399,7 @@ Test pass không có nghĩa v2 tốt hơn; eval cao không có nghĩa bộ máy 
 ## 13. Còn lại và việc cần kiểm tra (Phần A)
 
 - **Chưa có thí nghiệm nào chạy thật cho bài này.** Mọi ánh xạ Lab và quy tắc ở mục 4, 6, 7 là suy luận từ tài liệu và notes cũ. Chỉ phép tính 42 + 1 + 980 + 2 = 1025 ms (96%) là tính trực tiếp từ trace mẫu của bài.
-- **Tài liệu thiếu:** định nghĩa hồi quy, mức test nào bắt đầu tiên (câu 3); mục Watch Out (câu 4); quy tắc phân biệt model với integration (câu 2); cách đo `classify`; chưa có Failure Handling, Model Selection, Cost & Orchestration (câu 5, 6, 7).
+- **Tài liệu thiếu:** định nghĩa hồi quy, mức test nào bắt đầu tiên (câu 3); mục Watch Out (câu 4; đã nhận sau, xem mục 8.1); quy tắc phân biệt model với integration (câu 2); cách đo `classify`; chưa có Failure Handling, Model Selection, Cost & Orchestration (câu 5, 6, 7).
 - **Việc có thể làm ở Lab 4 (nếu làm):** thêm `run_id`, phiên bản prompt, model và trace từng bước vào bản ghi của `run_eval` (lấp chỗ W4D2 mục 12); thêm thời gian từng bước vào trace của `lab2_agent.py` (hiện chỉ có token); viết một functional test nhỏ gọi `claude-haiku-5-5` để bắt tham số bị từ chối ngay khi đổi model.
 - Chưa làm: thêm test khó hơn cho `bench_models.py` (từ W4D1).
 
@@ -553,7 +580,7 @@ Khung đó **còn thiếu** so với bài: 500 đến 504 (retriable), 401, 403,
 
 ## 21. "Watch Out" của bài Failure Handling
 
-Bài này cũng **không có mục Watch Out**; có ba khung (mục 18). Bẫy ngầm của bài, để đưa vào bảng ở mục 8:
+**Mục Watch Out chính thức của bài này là case ở mục 21.2** (gửi bù sau). Bản dán đầu của bài chỉ có ba khung (mục 18); bảng dưới là bẫy ngầm mình suy ra từ ba khung đó, đứng cạnh case, cũng đã gộp vào bảng ở mục 8:
 
 | Bẫy | Cách tránh |
 |---|---|
@@ -587,6 +614,29 @@ Quy tắc "5xx thì retry, 4xx thì không" là heuristic gần đúng, nhưng 4
 3. **Retry tốn tiền và độ trễ hơn**, và output không tất định nên có thêm loại "sửa lại rồi thử" (repair) không có ở DB (mục 19.2).
 
 Hai điều quen thuộc từ DB vẫn áp dụng và bài chưa nói: **idempotency** của thao tác ghi khi retry (mục 20 điểm 1), và **circuit breaker** (khi 529 kéo dài thì ngừng gửi và fail fast thay vì thử mãi). Circuit breaker là gợi ý của mình; bài chỉ nhắc "chuyển đường dự phòng".
+
+### 21.2 Case của bài: lệnh gọi chưa từng lỗi lúc phát triển **[docs]**
+
+**Đây là mục Watch Out của bài Failure Handling** (case "Why this broke", gửi bù sau; bạn xác nhận là mục Watch Out của khóa).
+
+**Chuyện gì xảy ra.** Lúc phát triển, dev gọi endpoint vài chục lần và lần nào cũng sạch, nên không viết đường lỗi. Lưu lượng dev thấp, kết nối ổn, hiếm chạm các điều kiện gây lỗi (rate limit, timeout, rớt mạng, phản hồi hỏng khi tải), nên **code xử lý chúng không bao giờ được viết**. Mã đã ship:
+
+```python
+for item in batch:
+    resp = client.messages.create(model=MODEL, max_tokens=MAX_TOKENS, messages=msg(item))
+    results.append(resp.content)    # assumes every call returns 200
+```
+
+Ở đỉnh lưu lượng đầu tiên API trả rate limit, ngoại lệ không xử lý bị ném, **cả request hỏng** thay vì chờ rồi thử lại. Với người dùng, tính năng như bị hỏng. Phản xạ đầu của dev: retry ngay trong vòng lặp chặt. **Càng tệ**, vì mỗi lần retry tức thì là thêm một request vào cùng hạn mức. Cách chữa thật là phép phân loại của bài: 429 là **retriable**, nên cần **backoff luỹ thừa, số lần có trần, và đọc `retry-after`** khi phản hồi có.
+
+**Vì sao vỡ:** lỗi retriable gặp code không có đường lỗi, rồi gặp retry dội làm hạn mức sâu thêm. Phân loại lỗi là retriable, rồi backoff có trần, **trước khi** lưu lượng tìm ra lỗ hổng thay bạn.
+
+**Đối chiếu [ngoài tài liệu]:**
+1. **Chỗ chưa khớp với SDK (mục 16).** Mã mẫu dùng `client.messages.create` của SDK, mà SDK 2.6.0 mặc định `max_retries=2` với backoff 0,5s × 2^n, có jitter, đọc `retry-after`. Vậy một 429 đơn lẻ **không** làm sập request ngay nếu dùng SDK mặc định; ngoại lệ chỉ bay ra **sau khi hết lượt retry**. Case chỉ khớp nếu (a) đợt quá tải kéo dài hơn khoảng 1,5 giây mà hai lần retry mặc định chờ (0,5 + 1), (b) client được tạo với `max_retries=0`, hoặc (c) không dùng SDK. Bài không nói. Mình chưa quan sát 429 thật nên không khẳng định (mục 24).
+2. **"Retry ngay trong vòng chặt" bọc quanh lệnh SDK chính là hai tầng retry nhân số lần** (bẫy 2 ở trên, ví dụ 3 × 3 = 9 request ở mục 16), và còn tệ hơn vì **không có backoff**. Case là ví dụ sống cho mục 16 và mục 20 điểm 2.
+3. **Bản sửa của bài chỉ nêu ba thứ** (backoff, trần, `retry-after`). Còn thiếu, đối chiếu mục 20: (a) **hết trần thì làm gì**: fallback hoặc lỗi gọn (mục 18); (b) **mất kết quả một phần**: vòng `for` hỏng ở một item làm mất cả `results` đã gom, cần xử lý lỗi **từng item** và lưu kết quả đã có; (c) **giới hạn tốc độ phía client** (semaphore hoặc token bucket) để không chạm giới hạn rồi mới xin lỗi; (d) **deadline tổng** và ngân sách retry nằm trong trần độ trễ (mục 20 điểm 6, 7; mục 43); (e) **idempotency** nếu thao tác là ghi (mục 20 điểm 1).
+4. **Vì sao dev không thấy lỗi lúc phát triển:** đây là lý do cụ thể cho điều "đường lỗi cũng cần test" (mục 20 điểm 8). Nếu không chủ động **tiêm lỗi** (server giả trả 429 vài lần rồi 200), "chưa từng thấy lỗi" sẽ thành "chưa từng viết xử lý". Failure injection biến lỗi hiếm thành thứ thấy mỗi lần chạy test.
+5. **Lab 2 đang ở đúng trạng thái "shipped version" của case này, ở tầng API.** Mục 19.1 đã ghi Lab 2 không có `try` quanh `client.messages.create`; có `max_retries=3` của SDK, hết lượt thì traceback. Tầng tool thì xử lý rất kỹ, tầng API thì chưa.
 
 ## 22. Nối với notes cũ **[ngoài tài liệu]**
 
@@ -776,7 +826,7 @@ Cả hai đều là **tham số hoặc tính năng của API bị từ chối**,
 
 ## 31. "Watch Out" của bài Model Selection
 
-Bài này cũng **không có mục Watch Out**; chỉ có ba khung (mục 29). Bẫy ngầm của bài, đã đưa vào bảng mục 8:
+**Mục Watch Out chính thức của bài này: chưa nhận được** (xem cuối mục). Bản dán đầu chỉ có ba khung (mục 29); bảng dưới là bẫy ngầm mình suy ra từ ba khung đó, đã đưa vào bảng mục 8:
 
 | Bẫy | Cách tránh |
 |---|---|
@@ -786,6 +836,8 @@ Bài này cũng **không có mục Watch Out**; chỉ có ba khung (mục 29). B
 | **Dựng router cho lưu lượng đồng đều** | Ghim một model, bỏ router |
 
 **[ngoài tài liệu]** Bẫy mình thêm: tin rằng "đổi model chỉ là đổi một dòng ID" (mục 30), và dùng tập eval quá dễ nên điểm chạm trần, không đủ cơ sở nâng hay hạ bậc (mục 28.1).
+
+**Mục Watch Out (case "Why this broke") của bài Model Selection: chưa có.** Ba bài còn lại của ngày đã có (mục 8.1, 21.2, 44.1); bài này chờ tài liệu gửi bù, sẽ ghi thành mục 31.1.
 
 ## 32. Nối với notes cũ **[ngoài tài liệu]**
 
@@ -1014,7 +1066,7 @@ Thang chọn của LAB2 mục 7: một lần gọi, workflow, agent, nhiều age
 
 ## 44. "Watch Out" của bài Cost & Orchestration
 
-Bài này cũng **không có mục Watch Out**; chỉ có ba khung *Handles well* (chi tiêu và độ trễ nhìn thấy theo từng lần gọi, nên vấn đề chi phí quy về một đòn bẩy có tên), *Adds cost or complexity* (subagent song song nhân chi phí token, khoảng 15 lần ở trường hợp báo cáo, **trước khi** cải thiện được câu trả lời nào), *Use a different approach* (việc gắn chặt như code: một agent ngữ cảnh tốt thắng rẽ nhánh). Bẫy ngầm:
+**Mục Watch Out chính thức của bài này là case ở mục 44.1** (gửi bù sau). Bản dán đầu chỉ có ba khung *Handles well* (chi tiêu và độ trễ nhìn thấy theo từng lần gọi, nên vấn đề chi phí quy về một đòn bẩy có tên), *Adds cost or complexity* (subagent song song nhân chi phí token, khoảng 15 lần ở trường hợp báo cáo, **trước khi** cải thiện được câu trả lời nào), *Use a different approach* (việc gắn chặt như code: một agent ngữ cảnh tốt thắng rẽ nhánh). Bẫy ngầm:
 
 | Bẫy | Cách tránh |
 |---|---|
@@ -1026,6 +1078,22 @@ Bài này cũng **không có mục Watch Out**; chỉ có ba khung *Handles well
 | **Subagent chạy mất kiểm soát hoặc kết quả tool quá lớn:** vượt xa mốc 15 lần | Trần token và vòng cho từng subagent, giới hạn kích thước kết quả tool |
 | **Không xử lý lỗi từng subagent:** một cái kẹt kéo cả tổng hợp | Retriable hay terminal, backoff, fallback, deadline cho từng subagent |
 | **Cắt chi phí xuống dưới sàn độ tin cậy:** đổi chi phí thấy được lấy lỗi im lặng | Đặt sàn trước; mọi thay đổi tiết kiệm phải qua cổng eval và độ trễ |
+
+### 44.1 Case của bài: fan-out song song làm hoá đơn gấp ba **[docs]**
+
+**Đây là mục Watch Out của bài Cost & Orchestration** (case "Why this broke", gửi bù sau; bạn xác nhận là mục Watch Out của khóa).
+
+**Chuyện gì xảy ra.** Một tác vụ chạy chậm, dev chia cho nhiều subagent song song vì nghĩ việc làm cùng lúc thì xong sớm hơn. Độ trễ giảm một chút. Rồi hoá đơn đến, **cao gấp vài lần** bản một agent, mà chất lượng câu trả lời gần như không đổi. Dev hỏi trong kênh nội bộ: "hoá đơn gấp ba, câu trả lời chỉ hơn chút, tôi đang trả tiền cho cái gì?". Senior trả lời: mỗi subagent tiêu token của riêng nó trên cửa sổ context của riêng nó; Anthropic báo cáo hệ thống nghiên cứu multi-agent của họ dùng khoảng **15 lần** token của một lượt chat thường vì đúng lý do đó; hệ số ấy xứng đáng khi việc chia được thành phần **độc lập** (nghiên cứu nhiều nguồn riêng); việc của dev thì mỗi bước phụ thuộc bước trước nên subagent chủ yếu **chờ nhau**, tức trả chi phí fan-out mà không được lợi song song. Dev chuyển về **một agent với context tốt**, giữ nguyên context: hoá đơn giảm, chất lượng giữ.
+
+**Vì sao vỡ:** dùng fan-out song song cho tác vụ không chia thành phần độc lập, nên mỗi subagent chỉ nhân chi phí token mà không thêm giá trị song song. Bài nhấn: không phải orchestration xấu, mà hệ số nhân chỉ mua được thứ gì khi việc **thật sự** chạy song song được.
+
+**Đối chiếu [ngoài tài liệu]:**
+1. **Số liệu khớp với cách đọc ở mục 40.2 điểm 1.** "Gấp ba" so với một agent xấp xỉ 15 lần chat chia cho khoảng 4 lần chat của một agent (≈ 3,75). Còn so với một lượt chat thường thì mới là 15 lần. Đây là bằng chứng gián tiếp cho cách đọc đó, nhưng case chỉ nói "gấp vài lần", không phải số đo; nguồn gốc 15 và 4 vẫn **chưa đối chiếu** (mục 47).
+2. **Nhận ra sớm "việc này không chia được".** Câu kiểm trước khi dựng: "mình có viết được danh sách các việc con **mà không cần biết kết quả của việc con trước** không?" Nếu không thì tuần tự (mục 42 danh sách điều 1). Sau khi chạy, kiểm bằng trace có thời gian từng bước (mục 5): nếu subagent B chỉ bắt đầu **sau khi** A xong thì đường găng (mục 41) là **tổng** chứ không phải max, tức song song chẳng giảm độ trễ. Phép đo gọn: so **tổng thời gian từng subagent** với **thời gian thực cả yêu cầu**; hai số gần bằng nhau nghĩa là thực chất đang chạy tuần tự.
+3. **Vì sao độ trễ vẫn "giảm một chút"?** Case không nói. Đoán của mình: một phần nhỏ việc (ví dụ bước tìm kiếm) độc lập thật, phần còn lại tuần tự; phần tuần tự giới hạn mức giảm (kiểu định luật Amdahl). Phần độc lập nhỏ không bù nổi hệ số nhân chi phí. Chưa kiểm.
+4. **Đây là bẫy 1 của mục 44 thành ví dụ:** "hóa đơn đến trước lời giải thích". Nếu đã log từng lần gọi theo `agent_id` ngay từ đầu (mục 41), chi phí nhân lên và subagent đứng chờ sẽ thấy ngay ở lần chạy đầu, không cần chờ hoá đơn.
+5. **Cổng eval của mục 42 điều 3** ("orchestrator tốt hơn một agent có ngân sách token ngang?") bắt được case này: chất lượng "barely better" nghĩa là rớt cổng và hệ số nhân không được biện minh.
+6. **Chi tiết đáng nhớ: "giữ nguyên context".** Bản sửa không bỏ thông tin nào, chỉ bỏ **sự nhân bản context**. Nếu mỗi subagent nạp lại cùng một phần context chung thì trả nhiều lần. Prompt caching giảm được phần này (mục 38), nhưng cache gắn theo model nên lead và subagent khác model thì không dùng chung (mục 45).
 
 ## 45. Nối với notes cũ **[ngoài tài liệu]**
 
@@ -1062,4 +1130,4 @@ Bài này cũng **không có mục Watch Out**; chỉ có ba khung *Handles well
 - **Bản dán thiếu** nội dung của hai tab "Prompt & context size" và "Number of tool calls"; nếu có bản đầy đủ thì bổ sung mục 37.
 - **Nếu làm Lab 4:** viết một wrapper đo đầy đủ (ghi cả lỗi, hai trường cache, `run_id`, `agent_id`, model); thêm bản ghi thời gian vào `lab2_agent.py`; chạy `bench_models.py` có thêm đo `cache_read_input_tokens`; viết thử một orchestrator nhỏ (lead cộng 2 subagent) và so chi phí, độ trễ, điểm eval với một agent.
 - **Ba việc còn treo từ các phần trước:** lưu kết quả eval để so phiên bản (W4D2 mục 12; Phần A mục 5.2), tái hiện 429 và 529 bằng server giả (Phần B mục 20 điểm 8), sửa câu chữ quy tắc "rẻ nhất" trong NOTES.md mục 2 (Phần C mục 28.1).
-- **Tổng kết ngày:** cả bốn bài (Testing and tracing, Failure Handling, Model Selection, Cost & Orchestration) đều **không có mục Watch Out**, nên câu 4 của bảng hướng dẫn chỉ trả lời được bằng bẫy ngầm (bảng mục 8). Nếu khóa học có mục Watch Out riêng ở chỗ khác, cần bổ sung.
+- **Tổng kết ngày:** mục Watch Out của khóa là case "Why this broke" cuối mỗi bài (bạn đã xác nhận). Đã có cho **Testing** (mục 8.1), **Failure Handling** (mục 21.2) và **Cost & Orchestration** (mục 44.1), nên câu 4 của bảng hướng dẫn trả lời được cho ba phần tư. **Model Selection còn thiếu** (mục 31); khi có thì ghi thành mục 31.1, và cập nhật hàng 4 của bảng mục 1 thành "Đủ". Các bảng bẫy ngầm ở mục 8, 21, 31, 44 vẫn giữ làm phần suy ra thêm. Case của Evals & Judges nằm ở W4D3 mục 8.1, của Security ở W4D6 mục 10.1.

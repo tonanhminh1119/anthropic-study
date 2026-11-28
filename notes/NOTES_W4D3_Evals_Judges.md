@@ -286,6 +286,26 @@ Bài khẳng định: một tập eval **lớn hơn với chấm tự động h�
 1. **Sinh được input, nhưng nhãn đáp án thì sao?** Hạt giống có nhãn do người; ca Claude sinh thêm nếu cũng do Claude gắn nhãn thì dính điểm mù chung (W4D1 mục 8.5). Nên để người xem lại nhãn của một mẫu, nhất là ca khó.
 2. **Độ phủ không phải số lượng thuần.** 20 ca cùng một kiểu không bằng 20 ca đa dạng. Những loại ca biên nên có: input rỗng, quá ngắn, quá dài, sai chính tả, trộn tiếng Việt và tiếng Anh, nhiều ý, ngoài phạm vi, và nội dung giống chỉ dẫn (kiểm trust boundary ở mục 2). Danh sách này là mở rộng từ W4D1 mục 7 câu 6.
 
+### 8.1 Postmortem của bài: demo qua rồi, ca biên thì không **[docs]**
+
+**Đây là mục Watch Out của bài Evals & Judges** (case "Why this broke" cuối bài, gửi bù sau khi học; bạn xác nhận là mục Watch Out của khóa).
+
+**Chuyện gì xảy ra.** Một tính năng trích trường có cấu trúc từ tin nhắn khách. Trước khi ship, nhóm chạy khoảng 12 tin mẫu, đọc output, thấy ổn. Tính năng có validation: tin không rỗng, trường ngày có giá trị, từ chối ngày sai dạng hoặc bất khả thi. Hai tuần đầu ổn. Rồi một khách gửi: "I placed my order on March 3 but did not receive it until April 12." Tính năng trích **April 12** làm ngày đặt hàng. Mọi kiểm tra đều qua vì cả hai ngày đều đúng dạng và trường có giá trị. Logic phía sau cập nhật sai một lô bản ghi.
+
+**Bài rút ra:**
+1. **Validation xác nhận giá trị có đúng hình dạng, không xác nhận giá trị có đúng.**
+2. Điều tra không thấy lỗi ở model hay prompt. Gốc là **thiếu tập ca đã chấm**: chưa ai định nghĩa hành vi mong đợi cho ca hai ngày. Mười hai ca tay đều một ngày, tức loại input mà người xây hình dung; không có holdout nên không có tín hiệu rằng ca hai ngày tồn tại trong quần thể input.
+3. **Eval không sửa lỗi.** Prompt đổi (nêu rõ lấy ngày nào) mới sửa output. Eval **phát hiện** lỗi, **ghi hành vi mong đợi thành ca kiểm được**, và **chắn hồi quy** ở mọi thay đổi sau. Tin hai ngày thành ca số 1 của tập.
+4. **Tìm ca như vậy trước khi khách tìm:** nhờ model liệt kê ca biên có thể làm vỡ cài đặt hiện tại (hai ngày trong một câu, không có ngày, ngày tương đối như "next Tuesday"), chọn ca hợp lý, biến thành ca chấm với **đầu ra mong đợi do người kiểm**. Cùng động tác sinh ca ở phần xây eval, làm **trước** khi ship thay vì sau.
+
+**Đối chiếu với notes cũ [ngoài tài liệu]:**
+1. **Đây là khác biệt "validate" và "grade".** `validate_json`, `validate_python` (mục 4.3 ở trên, W4D2 mục 23) kiểm hình dạng; W4D2 mục 27 đã ghi "cú pháp đúng không là đúng việc". Case này là bản production của câu đó: ngày hợp lệ nhưng sai ngày. Muốn bắt cần grader so với **đáp án chuẩn**. Output có một định dạng cố định (một ngày) nên **code grader so bằng** là đủ, không cần judge (mục 4.1, mục 10 dòng "Dùng cách khác"). Hình dạng vẫn nên kiểm (W4D5 mục 4.2: functional kiểm hình dạng, eval kiểm nội dung); case chỉ cho thấy kiểm hình dạng **không thay** được eval.
+2. **Gốc xa hơn "thiếu ca": đặc tả chưa từng được viết.** "Ngày đặt hàng là ngày nào khi có hai ngày" là một quyết định sản phẩm. Mục "Success criteria" của khung design doc (mục 2.4) là chỗ phải ghi; ca hai ngày buộc phải quyết định hành vi mong đợi, và đó là phần đáng giá nhất của việc viết ca.
+3. **Mười hai ca đọc bằng mắt là "chấm bằng cảm giác"**, cùng loại với kết luận từ 3 câu ở W4D1 mục 9 câu 2: ít ca, cùng một kiểu, không có đáp án đã ghi.
+4. **Cẩn thận với "holdout".** Sau khi ca hai ngày được thêm và prompt chỉnh cho đúng ca đó, ca ấy thành tập để **chỉnh**, không còn là holdout. Prompt sửa cũng có thể chỉnh quá khít. Ví dụ của mình: luật "lấy ngày đầu tiên" đúng với tin trên nhưng vỡ ở "I received it on April 12, after I ordered on March 3". Nên thêm ca **cùng loại nhưng khác hình dạng**: thứ tự đảo, ba ngày, hai ngày khác loại, ngày viết bằng tiếng Việt.
+5. **Mở rộng danh sách loại ca biên** ở mục 8 điểm 2: thêm "**nhiều giá trị cùng loại** trong một input", "**thiếu giá trị**" và "**giá trị tương đối**". Hai loại sau bài đã nêu; loại đầu là nguyên nhân sự cố.
+6. **Nhãn của ca do model sinh phải do người kiểm**: bài và mục 8 lưu ý 1 cùng nói vậy; case này nhấn: đầu ra mong đợi của ca hai ngày là quyết định của người, không phải của model.
+
 ## 9. Vòng lặp cải tiến
 
 ```
@@ -443,6 +463,7 @@ Cùng một cách chia tần suất ở mục 5: exact match và code check ch�
 16. Dùng Claude sinh thêm ca từ tập nhỏ có nhãn: kiểm gì trước khi dùng?
 17. Đổi prompt, thêm ví dụ và đổi model trong một lượt, điểm tăng. Học được gì? Vì sao xem từng ca quan trọng như xem trung bình?
 18. Một ca rớt vì định dạng; một ca rớt vì sự kiện trên nội dung truy xuất; một ca rớt chỉ khi input dài. Mỗi ca chỉ về đâu?
+19. Tin có hai ngày được trích sai mà mọi validation đều qua. Vì sao validation không bắt được? Cái gì bắt được, và loại grader nào là đủ (mục 8.1)?
 
 ## 14. Còn lại và việc cần kiểm tra
 
