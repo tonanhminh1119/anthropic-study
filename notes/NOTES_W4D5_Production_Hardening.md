@@ -685,7 +685,7 @@ def call_with_retry(make_call, max_attempts=5):
     raise RetryBudgetExhausted()
 ```
 
-Mình chưa xem đáp án mẫu của khóa nên phần dưới là đối chiếu với bài, chưa phải với đáp án chính thức.
+Đáp án mẫu của khóa nhận sau khi làm; đối chiếu ở cuối mục này ("Đáp án của khóa"). Phần ngay dưới là câu trả lời và bản sửa của mình trước khi xem đáp án.
 
 **Mình trả lời gì, và đối chiếu:**
 
@@ -765,6 +765,51 @@ Và trên các lớp thật của SDK 2.6.0 (`is_retriable`): `RateLimitError` 4
 2. **Idempotency** nếu `make_call` là thao tác ghi (mục 20 điểm 1), và **deadline tổng** để `retry-after` lớn không treo yêu cầu (mục 20 điểm 7).
 3. **Ghi mỗi lần retry vào trace** (mục 20 điểm 9) để phân biệt "chậm do retry" với "chậm do model".
 4. Hàm `retry_after` chỉ đọc dạng **số giây**; header cũng có thể ở dạng ngày HTTP (SDK xử lý cả hai, mục 16).
+
+**Đáp án của khóa [docs].** Lỗi: **không có backoff** (`time.sleep(0)` bắn retry ngay lập tức), và vòng lặp còn **retry mọi exception kể cả terminal như 400**. Với rate limit, mỗi retry tức thì tính thêm một request và làm hạn mức sâu hơn thay vì chờ nó tan. **Ba sửa:** (1) đọc `retry-after` từ header trước, rồi mới lùi về backoff luỹ thừa; (2) khoảng chờ tăng dần giữa các lần, có trần; (3) **fail fast** với terminal (400, 401, 403, 404).
+
+```python
+def call_with_retry(make_call, max_attempts=5, cap=30):
+    for attempt in range(max_attempts):
+        try:
+            return make_call()
+        except anthropic.RateLimitError as e:
+            wait = e.response.headers.get("retry-after")
+            if wait is None:
+                wait = min(cap, 2 ** attempt) + random.uniform(0, 1)
+            time.sleep(float(wait))
+        except anthropic.APIStatusError as e:
+            if not is_retriable(e.status_code):
+                raise                        # fail fast on terminal
+            time.sleep(min(cap, 2 ** attempt) + random.uniform(0, 1))
+    raise RetryBudgetExhausted()
+```
+
+**So khớp với câu trả lời của mình:**
+
+| Ý | Mình | Khóa |
+|---|---|---|
+| Không phân loại, retry cả lỗi terminal | **Có** (ý đầu của mình) | Có, là sửa (3); khóa dùng chính `is_retriable(status)` mình đã viết |
+| **Không backoff (`sleep(0)`)** | **Bỏ sót ở bản đầu** | **Là ý đầu tiên của khóa** (sửa 1 và 2) |
+| Đọc `retry-after` trước, backoff sau | Chỉ thêm ở bản sửa | Có, sửa (1) |
+| Trần cho khoảng chờ | Chỉ thêm ở bản sửa | Có, sửa (2) |
+| Trả `is_error: True` trong `except` | Có | **Không có**: xác nhận đó là **sai tầng**, thuộc tool runner (mục 17), không thuộc hàm retry |
+
+Bản sửa của mình (phía trên) có đủ ba sửa của khóa, cộng ba thứ khóa không có: retry **timeout và lỗi mạng**, giữ **lỗi gốc** (`from last_exc`), và **không ngủ sau lần cuối**.
+
+**Đáp án của khóa là bản tối thiểu cho checkpoint, có chỗ hở.** Mình chạy nguyên văn với exception thật của SDK 2.6.0 (`time.sleep` được thay, không chờ thật):
+
+| Chỗ hở | Kết quả chạy thử |
+|---|---|
+| **Ngủ sau lần cuối** rồi mới ném lỗi | 429 liên tục 5 lần: ngủ 5 lần `[1,62; 2,57; 4,35; 8,98; 16,98]`. Lần cuối khoảng 17 giây hoàn toàn thừa |
+| **`retry-after` không có trần** (`cap` chỉ áp cho backoff) | Header `3600` thì ngủ 3600 giây **mỗi lần**, 5 lần. Cần deadline tổng (mục 20 điểm 7) |
+| **`float(wait)` với `retry-after` dạng ngày HTTP** | **`ValueError` rò ra**, che mất lỗi API (SDK xử lý cả hai dạng, mục 16) |
+| **Không có nhánh cho timeout và lỗi mạng** | `APITimeoutError` và `APIConnectionError` bị **ném ngay, không retry**, mâu thuẫn với bảng mục 15 (timeout thường retriable) |
+| **`RetryBudgetExhausted()` trống, không `from`** | `__cause__` là `None`: **mất lỗi gốc** (che lỗi thật, mục 15) |
+
+Thêm hai điểm không cần chạy: (a) hằng số backoff khác SDK (khóa: 2^n bắt đầu từ 1s, trần 30s, cộng jitter 0 đến 1s; SDK: 0,5s × 2^n, trần 8s, nhân jitter 75 đến 100%, mục 16), cùng ý; (b) khóa không nói chuyện **chồng với retry của SDK** (mục 16): 5 lần thử nhân 3 request là tối đa 15 request.
+
+Điểm đúng của khóa: **thứ tự `except` đúng** (nhánh cụ thể `RateLimitError` trước nhánh chung `APIStatusError`), dùng đúng tên lớp của SDK, và chọn `retry-after` làm nguồn ưu tiên. Kết luận: dùng **khung của khóa** cho checkpoint, nhưng bản dùng thật nên thêm các sửa ở bảng trên.
 
 ## 22. Nối với notes cũ **[ngoài tài liệu]**
 
